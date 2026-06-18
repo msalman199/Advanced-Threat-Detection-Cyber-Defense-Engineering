@@ -1,0 +1,399 @@
+Asset Inventory and Exposure Scoring
+Objectives
+By the end of this lab, students will be able to:
+
+Install and configure OpenVAS for vulnerability scanning
+Perform network asset vulnerability assessments
+Develop Python scripts to calculate risk exposure scores using CVSS ratings
+Visualize vulnerability data using the ELK Stack
+Interpret vulnerability data to prioritize remediation efforts
+Prerequisites
+Basic Linux command line proficiency
+Fundamental networking knowledge (IP addresses, ports)
+Python programming basics
+Understanding of cybersecurity vulnerabilities and risk concepts
+Familiarity with JSON data structures
+Lab Environment
+Al Nafi provides a pre-configured Ubuntu 20.04 LTS cloud machine. Click Start Lab to access your environment. All tasks are performed on a single Linux machine with internet access.
+
+Task 1: Install and Configure OpenVAS
+Step 1: Install OpenVAS Components
+Update system and install required packages:
+
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y gvm postgresql redis-server
+Step 2: Configure Database and Services
+Initialize PostgreSQL for OpenVAS:
+
+sudo systemctl start postgresql redis-server
+sudo systemctl enable postgresql redis-server
+
+# Create database
+sudo -u postgres createuser -DRS gvm
+sudo -u postgres createdb -O gvm gvmd
+sudo -u postgres psql gvmd -c "create role dba with superuser noinherit;"
+sudo -u postgres psql gvmd -c "grant dba to gvm;"
+sudo -u postgres psql gvmd -c "create extension \"uuid-ossp\";"
+sudo -u postgres psql gvmd -c "create extension \"pgcrypto\";"
+Step 3: Initialize OpenVAS
+Configure Redis and initialize GVM:
+
+echo "unixsocket /var/run/redis/redis.sock" | sudo tee -a /etc/redis/redis.conf
+echo "unixsocketperm 770" | sudo tee -a /etc/redis/redis.conf
+sudo systemctl restart redis-server
+sudo usermod -aG redis gvm
+
+# Initialize (takes 15-30 minutes)
+sudo gvm-setup
+Step 4: Start Services and Create Admin User
+sudo systemctl start gvmd gsad ospd-openvas
+sudo systemctl enable gvmd gsad ospd-openvas
+
+# Create admin user
+sudo gvmd --create-user=admin --password=SecurePass123
+
+# Access web interface at https://localhost:9392
+Task 2: Perform Vulnerability Scanning
+Step 1: Configure Scan Target
+In OpenVAS web interface (https://localhost:9392):
+
+Navigate to Configuration → Targets
+Click New Target
+Configure:
+Name: Lab Network Scan
+Hosts: 127.0.0.1, 192.168.1.0/24
+Port List: All IANA assigned TCP
+Step 2: Create and Execute Scan
+Go to Scans → Tasks
+Click New Task
+Set:
+Name: Asset Inventory
+Scan Config: Full and fast
+Target: Lab Network Scan
+Click Start to begin scan
+Step 3: Export Results
+After scan completion:
+
+Navigate to Scans → Reports
+Select completed report
+Export as XML format
+Save as vulnerability_scan.xml
+mkdir -p ~/lab2_assets
+cd ~/lab2_assets
+# Move downloaded XML file here
+Task 3: Develop Risk Scoring Scripts
+Step 1: Setup Python Environment
+python3 -m venv venv
+source venv/bin/activate
+pip install lxml pandas numpy matplotlib seaborn
+Step 2: Create XML Parser (Starter Template)
+Create parse_openvas.py:
+
+import xml.etree.ElementTree as ET
+import pandas as pd
+import json
+
+class OpenVASParser:
+    def __init__(self, xml_file):
+        """Initialize parser with XML file path"""
+        self.xml_file = xml_file
+        # TODO: Parse XML file and store root element
+        
+    def extract_vulnerabilities(self):
+        """
+        Extract vulnerability data from XML report.
+        
+        Returns:
+            List of dictionaries containing vulnerability information
+        """
+        vulnerabilities = []
+        
+        # TODO: Iterate through XML results
+        # TODO: Extract: host, port, nvt_oid, name, cvss_base, threat, description
+        # TODO: Append each vulnerability to list
+        
+        return vulnerabilities
+    
+    def save_to_json(self, vulnerabilities, output_file):
+        """Save vulnerabilities to JSON file"""
+        # TODO: Write vulnerabilities list to JSON file
+        pass
+        
+    def create_dataframe(self, vulnerabilities):
+        """Convert vulnerabilities to pandas DataFrame"""
+        # TODO: Create and return DataFrame from vulnerabilities list
+        pass
+
+if __name__ == "__main__":
+    parser = OpenVASParser('vulnerability_scan.xml')
+    vulns = parser.extract_vulnerabilities()
+    parser.save_to_json(vulns, 'vulnerabilities.json')
+    df = parser.create_dataframe(vulns)
+    df.to_csv('vulnerabilities.csv', index=False)
+    print(f"Extracted {len(vulns)} vulnerabilities")
+Step 3: Create Risk Scoring Algorithm (Starter Template)
+Create risk_scorer.py:
+
+import pandas as pd
+import numpy as np
+from collections import defaultdict
+
+class RiskScorer:
+    def __init__(self, vulnerabilities_file):
+        """Initialize with CSV file containing vulnerabilities"""
+        self.df = pd.read_csv(vulnerabilities_file)
+        self.asset_scores = defaultdict(dict)
+        
+    def calculate_cvss_multiplier(self, cvss_score):
+        """
+        Convert CVSS score to risk multiplier.
+        
+        Args:
+            cvss_score: CVSS base score (0-10)
+            
+        Returns:
+            Risk multiplier (0.1-1.0)
+        """
+        # TODO: Implement scoring logic
+        # Critical (9.0-10.0): 1.0
+        # High (7.0-8.9): 0.8
+        # Medium (4.0-6.9): 0.6
+        # Low (0.1-3.9): 0.3
+        # Info (0.0): 0.1
+        pass
+            
+    def calculate_port_criticality(self, port):
+        """
+        Assign criticality score based on port number.
+        
+        Args:
+            port: Port number or port/protocol string
+            
+        Returns:
+            Criticality score (0.5-1.0)
+        """
+        # TODO: Extract port number from string
+        # TODO: Define critical ports (22, 80, 443, 3389, etc.)
+        # TODO: Return appropriate criticality score
+        pass
+    
+    def calculate_asset_exposure_score(self):
+        """Calculate exposure score for each unique asset"""
+        
+        for host in self.df['host'].unique():
+            # TODO: Filter vulnerabilities for this host
+            # TODO: Calculate weighted score using CVSS and port criticality
+            # TODO: Apply vulnerability count multiplier
+            # TODO: Store results in self.asset_scores[host]
+            pass
+    
+    def generate_risk_report(self):
+        """
+        Generate comprehensive risk assessment report.
+        
+        Returns:
+            DataFrame with risk scores and vulnerability counts per asset
+        """
+        self.calculate_asset_exposure_score()
+        
+        # TODO: Convert asset_scores to DataFrame
+        # TODO: Sort by exposure_score (descending)
+        # TODO: Return sorted DataFrame
+        pass
+    
+    def save_report(self, report_df, filename='risk_assessment_report.csv'):
+        """Save risk report to CSV and JSON files"""
+        # TODO: Save DataFrame to CSV
+        # TODO: Save DataFrame to JSON
+        pass
+
+if __name__ == "__main__":
+    scorer = RiskScorer('vulnerabilities.csv')
+    report = scorer.generate_risk_report()
+    scorer.save_report(report)
+    print("Risk assessment complete!")
+Step 4: Execute Scripts
+python3 parse_openvas.py
+python3 risk_scorer.py
+Task 4: Install and Configure ELK Stack
+Step 1: Install Elasticsearch
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-7.x.list
+sudo apt update
+sudo apt install -y elasticsearch
+Configure Elasticsearch (/etc/elasticsearch/elasticsearch.yml):
+
+cluster.name: vulnerability-analysis
+node.name: node-1
+network.host: localhost
+http.port: 9200
+discovery.type: single-node
+Start service:
+
+sudo systemctl start elasticsearch
+sudo systemctl enable elasticsearch
+curl -X GET "localhost:9200/"
+Step 2: Install and Configure Logstash
+sudo apt install -y logstash
+Create configuration (/etc/logstash/conf.d/vulnerabilities.conf):
+
+input {
+  file {
+    path => "/home/ubuntu/lab2_assets/risk_assessment_report.json"
+    start_position => "beginning"
+    sincedb_path => "/dev/null"
+    codec => "json"
+  }
+}
+
+filter {
+  mutate {
+    convert => {
+      "exposure_score" => "float"
+      "vulnerability_count" => "integer"
+    }
+  }
+  
+  if [exposure_score] >= 7.0 {
+    mutate { add_field => { "risk_level" => "High" } }
+  } else if [exposure_score] >= 4.0 {
+    mutate { add_field => { "risk_level" => "Medium" } }
+  } else {
+    mutate { add_field => { "risk_level" => "Low" } }
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["localhost:9200"]
+    index => "vulnerability-assessment"
+  }
+}
+Start Logstash:
+
+sudo systemctl start logstash
+sudo systemctl enable logstash
+Step 3: Install Kibana
+sudo apt install -y kibana
+Configure Kibana (/etc/kibana/kibana.yml):
+
+server.port: 5601
+server.host: "localhost"
+elasticsearch.hosts: ["http://localhost:9200"]
+Start service:
+
+sudo systemctl start kibana
+sudo systemctl enable kibana
+# Access at http://localhost:5601 (wait 2-3 minutes)
+Step 4: Load Data
+sudo /usr/share/logstash/bin/logstash -f /etc/logstash/conf.d/vulnerabilities.conf
+Verify data:
+
+curl -X GET "localhost:9200/vulnerability-assessment/_search?pretty"
+Task 5: Create Visualizations
+Step 1: Create Index Pattern
+In Kibana (http://localhost:5601):
+
+Go to Management → Index Patterns
+Create pattern: vulnerability-assessment*
+Select time field or skip
+Click Create
+Step 2: Build Heatmap Visualization
+Navigate to Visualize Library → Create visualization
+Select Heat map
+Choose vulnerability-assessment* index
+Configure:
+Y-axis: Terms on host.keyword
+X-axis: Terms on risk_level.keyword
+Values: Average of exposure_score
+Save as "Risk Exposure Heatmap"
+Step 3: Create Additional Visualizations
+Risk Distribution Pie Chart:
+
+Type: Pie chart
+Buckets: Terms on risk_level.keyword
+Vulnerability Count Bar Chart:
+
+Type: Vertical bar
+X-axis: Terms on host.keyword
+Y-axis: Sum of vulnerability_count
+Step 4: Build Dashboard
+Go to Dashboard → Create dashboard
+Add all created visualizations
+Arrange layout
+Save as "Vulnerability Assessment Dashboard"
+Step 5: Generate Static Heatmap (Starter Template)
+Create vulnerability_heatmap.py:
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+class VulnerabilityHeatmap:
+    def __init__(self, report_file):
+        """Initialize with risk assessment report CSV"""
+        self.df = pd.read_csv(report_file)
+        
+    def create_risk_heatmap(self):
+        """
+        Create heatmap showing risk distribution.
+        Saves output as vulnerability_heatmap.png
+        """
+        # TODO: Create risk categories from exposure_score
+        # TODO: Create vulnerability density categories
+        # TODO: Generate pivot table for heatmap
+        # TODO: Create seaborn heatmap with custom colormap
+        # TODO: Save figure
+        pass
+        
+    def create_host_risk_matrix(self):
+        """
+        Create matrix showing top 20 hosts by vulnerability severity.
+        Saves output as host_vulnerability_matrix.png
+        """
+        # TODO: Select top 20 hosts by exposure_score
+        # TODO: Create matrix with critical/high/medium/low counts
+        # TODO: Generate heatmap
+        # TODO: Save figure
+        pass
+
+if __name__ == "__main__":
+    heatmap = VulnerabilityHeatmap('risk_assessment_report.csv')
+    heatmap.create_risk_heatmap()
+    heatmap.create_host_risk_matrix()
+    print("Heatmaps generated!")
+Execute:
+
+python3 vulnerability_heatmap.py
+Expected Outcomes
+Upon completion, students will have:
+
+Functional OpenVAS installation with completed vulnerability scan
+CSV/JSON files containing parsed vulnerability data
+Risk assessment report with calculated exposure scores
+Working ELK Stack with indexed vulnerability data
+Interactive Kibana dashboard with multiple visualizations
+Static heatmap images showing risk distribution
+Understanding of vulnerability scoring methodologies
+Troubleshooting Tips
+OpenVAS Issues:
+
+If gvm-setup fails, check disk space (requires 5GB+)
+Verify all services running: sudo systemctl status gvmd gsad ospd-openvas
+Reset admin password: sudo gvmd --user=admin --new-password=NewPass123
+ELK Stack Issues:
+
+Elasticsearch won't start: Check Java installation and memory (requires 2GB+ RAM)
+Logstash not processing: Verify file path in configuration matches actual location
+Kibana connection error: Ensure Elasticsearch is running on port 9200
+Python Script Issues:
+
+Import errors: Verify virtual environment is activated
+XML parsing fails: Check XML file is valid and complete
+Empty DataFrames: Verify XML structure matches parser expectations
+Conclusion
+This lab provided hands-on experience with enterprise vulnerability management workflows. Students learned to deploy OpenVAS for asset discovery, develop custom risk scoring algorithms, and visualize security data using the ELK Stack. These skills are essential for security analysts, penetration testers, and IT security professionals responsible for vulnerability management programs.
+
+Key takeaways include understanding CVSS scoring, automating vulnerability analysis with Python, and creating actionable security dashboards. The risk scoring methodology demonstrated can be adapted to organizational needs by adjusting multipliers and criticality factors.
+
+Continue practicing by scanning different network ranges, refining scoring algorithms, and creating custom Kibana visualizations to meet specific reporting requirements.
