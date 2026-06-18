@@ -1,0 +1,537 @@
+ Threat Mapping with MITRE ATT&CK Navigator
+Objectives
+By the end of this lab, students will be able to:
+
+Navigate and utilize the MITRE ATT&CK Navigator interface for threat visualization
+Map adversary tactics, techniques, and procedures (TTPs) to real-world threat actors
+Create custom threat intelligence layers using manual and automated methods
+Analyze defense gaps by comparing threats against current security controls
+Generate actionable security recommendations based on ATT&CK framework analysis
+Prerequisites
+Basic understanding of cybersecurity concepts and attack lifecycle
+Familiarity with Linux command line operations
+Basic Python programming knowledge (functions, loops, dictionaries)
+Understanding of JSON data format
+Lab Environment
+Al Nafi provides ready-to-use Linux-based cloud machines for this lab. Click Start Lab to access your pre-configured environment.
+
+Your lab machine includes:
+
+Ubuntu 22.04 LTS with GUI desktop
+Python 3.10+ with required libraries pre-installed
+Firefox web browser
+Text editors (nano, vim, gedit)
+MITRE ATT&CK Navigator files pre-downloaded
+Task 1: Set Up and Navigate MITRE ATT&CK Navigator
+Step 1: Launch the Navigator
+Open a terminal with Ctrl+Alt+T
+
+Navigate to the pre-installed Navigator directory:
+
+cd ~/attack-navigator
+npm start
+Open Firefox and navigate to:
+http://localhost:4200
+Wait for the ATT&CK Enterprise matrix to load
+Step 2: Explore the Interface
+Identify key interface components:
+
+Tactics (columns): Adversary goals like Initial Access, Execution, Persistence
+Techniques (cells): Specific attack methods within each tactic
+Sub-techniques: Expandable details under main techniques
+Layer controls: Top menu for customization
+Practice navigation:
+
+Click on technique T1566 (Phishing) to view details
+Use the search box to find "PowerShell"
+Toggle between compact and expanded views
+Explore the technique information panel
+Step 3: Create Your First Layer
+Click Create New Layer in the top menu
+
+Configure the layer:
+
+Domain: Enterprise ATT&CK
+Name: "Lab1-Baseline"
+Description: "Baseline threat mapping exercise"
+Save the layer:
+
+Click Layer > Download Layer > layer.json
+Save to ~/threat-mapping-lab/baseline-layer.json
+Task 2: Map Threat Actor Techniques
+Step 1: Research APT29 Threat Actor
+For this exercise, you'll map techniques used by APT29 (Cozy Bear), a sophisticated threat actor known for targeting government and research organizations.
+
+Create a new layer named "APT29-Mapping"
+
+Research APT29 using the Navigator's built-in information:
+
+Search for "APT29" in the search box
+Review associated techniques
+Note technique IDs and descriptions
+Step 2: Manual Technique Mapping
+Map the following APT29 techniques by clicking each technique and setting its score:
+
+Initial Access:
+
+T1566.001 (Spearphishing Attachment) - Score: 3 (High)
+T1566.002 (Spearphishing Link) - Score: 3 (High)
+Execution:
+
+T1059.001 (PowerShell) - Score: 3 (High)
+T1059.003 (Windows Command Shell) - Score: 2 (Medium)
+Persistence:
+
+T1547.001 (Registry Run Keys) - Score: 2 (Medium)
+T1078.004 (Cloud Accounts) - Score: 3 (High)
+Defense Evasion:
+
+T1055 (Process Injection) - Score: 3 (High)
+T1027 (Obfuscated Files) - Score: 3 (High)
+Credential Access:
+
+T1003.001 (LSASS Memory) - Score: 2 (Medium)
+T1555.003 (Credentials from Web Browsers) - Score: 3 (High)
+Discovery:
+
+T1083 (File and Directory Discovery) - Score: 2 (Medium)
+T1057 (Process Discovery) - Score: 2 (Medium)
+Collection:
+
+T1114.002 (Remote Email Collection) - Score: 3 (High)
+Command and Control:
+
+T1071.001 (Web Protocols) - Score: 3 (High)
+Exfiltration:
+
+T1041 (Exfiltration Over C2) - Score: 3 (High)
+Step 3: Add Metadata
+For each high-priority technique (score 3), add a comment:
+
+Example for T1566.001:
+
+APT29 uses spearphishing with malicious Office documents containing macros. Notable campaigns targeted COVID-19 research in 2020.
+Save your layer as apt29-mapping.json
+
+Step 4: Create Automated Mapping Script
+Create a Python script to automate threat mapping:
+
+mkdir -p ~/threat-mapping-lab
+cd ~/threat-mapping-lab
+nano threat_mapper.py
+Add the following starter code:
+
+#!/usr/bin/env python3
+"""
+Automated Threat Mapping Script for MITRE ATT&CK Navigator
+Students: Complete the TODO sections to implement full functionality
+"""
+
+import json
+from datetime import datetime
+
+class ThreatMapper:
+    def __init__(self):
+        """Initialize the threat mapper with base layer structure"""
+        self.base_layer = {
+            "name": "",
+            "versions": {
+                "attack": "12",
+                "navigator": "4.8.1",
+                "layer": "4.4"
+            },
+            "domain": "enterprise-attack",
+            "description": "",
+            "techniques": [],
+            "gradient": {
+                "colors": ["#ff6666ff", "#ffe766ff", "#8ec843ff"],
+                "minValue": 0,
+                "maxValue": 3
+            }
+        }
+    
+    def create_technique_entry(self, technique_id, score, comment=""):
+        """
+        Create a technique entry for the layer
+        
+        Args:
+            technique_id: ATT&CK technique ID (e.g., "T1566.001")
+            score: Risk score 1-3
+            comment: Description of technique usage
+        
+        Returns:
+            Dictionary representing the technique entry
+        """
+        # TODO: Create and return a dictionary with technique details
+        # Include: techniqueID, score, comment, enabled=True
+        pass
+    
+    def create_threat_layer(self, actor_name, techniques_list):
+        """
+        Create a comprehensive threat layer for a specific actor
+        
+        Args:
+            actor_name: Name of the threat actor
+            techniques_list: List of tuples (technique_id, score, comment)
+        
+        Returns:
+            Complete layer dictionary
+        """
+        # TODO: Copy base_layer and populate with actor information
+        # TODO: Set name and description with timestamp
+        # TODO: Iterate through techniques_list and add entries
+        # TODO: Return completed layer
+        pass
+    
+    def save_layer(self, layer, filename):
+        """
+        Save layer to JSON file
+        
+        Args:
+            layer: Layer dictionary to save
+            filename: Output filename
+        """
+        # TODO: Write layer to JSON file with proper formatting
+        # TODO: Print confirmation message
+        pass
+    
+    def generate_statistics(self, layer):
+        """
+        Generate statistics about the threat layer
+        
+        Args:
+            layer: Layer dictionary to analyze
+        
+        Returns:
+            Dictionary with statistics (total techniques, high/medium/low counts)
+        """
+        # TODO: Count total techniques
+        # TODO: Count techniques by score level
+        # TODO: Return statistics dictionary
+        pass
+
+def main():
+    """Main function to execute threat mapping"""
+    print("Starting Automated Threat Mapping...")
+    
+    # Initialize mapper
+    mapper = ThreatMapper()
+    
+    # Define APT29 techniques (technique_id, score, comment)
+    apt29_techniques = [
+        ("T1566.001", 3, "Spearphishing attachments with malicious documents"),
+        ("T1566.002", 3, "Spearphishing links to credential harvesting"),
+        ("T1059.001", 3, "PowerShell for execution and payload delivery"),
+        # TODO: Add remaining techniques from your research
+    ]
+    
+    # TODO: Create the threat layer using create_threat_layer()
+    # TODO: Save the layer using save_layer()
+    # TODO: Generate and print statistics
+    # TODO: Print summary of results
+
+if __name__ == "__main__":
+    main()
+Make executable and test:
+
+chmod +x threat_mapper.py
+python3 threat_mapper.py
+Task 3: Analyze Defense Gaps
+Step 1: Create Defense Coverage Layer
+In Navigator, create a new layer: "Defense-Coverage"
+
+Map your current defensive capabilities against APT29 techniques using this scoring:
+
+Score 3 (Green): Strong defense with detection and prevention
+Score 2 (Yellow): Partial defense with limited visibility
+Score 1 (Red): Weak or no defense coverage
+Example defense mapping:
+
+T1566.001: Score 2 (Email filtering exists, limited sandboxing)
+T1059.001: Score 1 (Basic logging only, no behavioral detection)
+T1078.004: Score 3 (Strong MFA and cloud monitoring)
+Save as defense-coverage.json
+Step 2: Create Defense Gap Analysis Script
+Create a script to identify and prioritize defense gaps:
+
+nano defense_analyzer.py
+Add the following starter code:
+
+#!/usr/bin/env python3
+"""
+Defense Gap Analysis Script
+Students: Complete the implementation to analyze defense gaps
+"""
+
+import json
+from datetime import datetime
+
+class DefenseAnalyzer:
+    def __init__(self):
+        """Initialize with defense control mappings"""
+        self.control_mappings = {
+            "T1566.001": ["Email Security Gateway", "Sandboxing", "User Training"],
+            "T1059.001": ["PowerShell Logging", "Script Block Logging", "AMSI"],
+            "T1078.004": ["MFA", "Conditional Access", "Cloud Monitoring"],
+            # TODO: Add mappings for other techniques
+        }
+    
+    def load_layer(self, filename):
+        """
+        Load a Navigator layer from JSON file
+        
+        Args:
+            filename: Path to layer JSON file
+        
+        Returns:
+            Layer dictionary or None if error
+        """
+        # TODO: Implement file loading with error handling
+        pass
+    
+    def calculate_gaps(self, threat_layer, defense_layer):
+        """
+        Calculate defense gaps by comparing threat and defense scores
+        
+        Args:
+            threat_layer: Threat actor layer
+            defense_layer: Current defense coverage layer
+        
+        Returns:
+            Dictionary with gap analysis (critical, high, medium, covered)
+        """
+        # TODO: Create dictionaries mapping technique IDs to scores
+        # TODO: Calculate gap_score = threat_score - defense_score
+        # TODO: Categorize gaps: critical (gap>=2), high (gap=1), medium (gap=0)
+        # TODO: Return categorized gaps with technique details
+        pass
+    
+    def generate_recommendations(self, gaps):
+        """
+        Generate prioritized recommendations based on gaps
+        
+        Args:
+            gaps: Gap analysis dictionary
+        
+        Returns:
+            List of recommendations with priority, technique, and controls
+        """
+        # TODO: For each critical gap, create recommendation with controls
+        # TODO: For each high gap, create recommendation
+        # TODO: Sort by priority
+        # TODO: Return recommendations list
+        pass
+    
+    def create_gap_layer(self, gaps, output_filename):
+        """
+        Create a Navigator layer visualizing defense gaps
+        
+        Args:
+            gaps: Gap analysis dictionary
+            output_filename: Output file path
+        """
+        # TODO: Create layer structure
+        # TODO: Add techniques with gap scores as colors
+        # TODO: Save to file
+        pass
+    
+    def generate_report(self, gaps, recommendations):
+        """
+        Generate comprehensive defense gap report
+        
+        Args:
+            gaps: Gap analysis dictionary
+            recommendations: List of recommendations
+        
+        Returns:
+            Report dictionary with summary and details
+        """
+        # TODO: Create report structure with metadata
+        # TODO: Add executive summary with counts
+        # TODO: Include detailed gaps and recommendations
+        # TODO: Add next steps
+        # TODO: Return complete report
+        pass
+
+def main():
+    """Main function for defense gap analysis"""
+    print("Starting Defense Gap Analysis...")
+    
+    analyzer = DefenseAnalyzer()
+    
+    # TODO: Load threat layer (apt29_automated_mapping.json)
+    # TODO: Load defense layer (defense-coverage.json)
+    # TODO: Calculate gaps
+    # TODO: Generate recommendations
+    # TODO: Create gap visualization layer
+    # TODO: Generate and save report
+    # TODO: Print summary statistics
+
+if __name__ == "__main__":
+    main()
+Step 3: Run Analysis and Review Results
+Execute the defense analyzer:
+python3 defense_analyzer.py
+Load the generated gap layer in Navigator:
+
+Open Navigator
+Click Open Existing Layer
+Upload defense_gaps_layer.json
+Review the visualization:
+
+Red areas: Critical gaps requiring immediate attention
+Yellow areas: High priority gaps
+Green areas: Adequate defense coverage
+Examine the JSON report:
+
+cat defense_gap_report.json | python3 -m json.tool | less
+Step 4: Create Implementation Roadmap
+Create a final script for strategic planning:
+
+nano implementation_roadmap.py
+Add starter code:
+
+#!/usr/bin/env python3
+"""
+Implementation Roadmap Generator
+Students: Complete to create prioritized security improvement plan
+"""
+
+import json
+from datetime import datetime, timedelta
+
+class RoadmapGenerator:
+    def __init__(self):
+        """Initialize with timeline and cost estimates"""
+        self.timelines = {
+            "CRITICAL": 30,   # days
+            "HIGH": 90,
+            "MEDIUM": 180
+        }
+        
+        self.cost_estimates = {
+            "Email Security Gateway": 50000,
+            "PowerShell Logging": 5000,
+            "MFA": 25000,
+            # TODO: Add more control cost estimates
+        }
+    
+    def load_report(self, filename):
+        """Load defense gap report"""
+        # TODO: Implement file loading
+        pass
+    
+    def create_roadmap(self, recommendations):
+        """
+        Create phased implementation roadmap
+        
+        Args:
+            recommendations: List of prioritized recommendations
+        
+        Returns:
+            Dictionary with phases and implementation items
+        """
+        # TODO: Create phases (0-30, 30-90, 90-180 days)
+        # TODO: Assign recommendations to phases based on priority
+        # TODO: Calculate completion dates
+        # TODO: Return roadmap structure
+        pass
+    
+    def calculate_budget(self, roadmap):
+        """
+        Calculate budget requirements for roadmap
+        
+        Args:
+            roadmap: Implementation roadmap
+        
+        Returns:
+            Budget breakdown by phase and total
+        """
+        # TODO: Iterate through roadmap phases
+        # TODO: Sum costs for each control
+        # TODO: Calculate phase totals and grand total
+        # TODO: Return budget dictionary
+        pass
+    
+    def export_roadmap(self, roadmap, budget, filename):
+        """
+        Export roadmap to JSON file
+        
+        Args:
+            roadmap: Implementation roadmap
+            budget: Budget calculations
+            filename: Output filename
+        """
+        # TODO: Combine roadmap and budget data
+        # TODO: Add metadata and summary
+        # TODO: Save to JSON file
+        pass
+
+def main():
+    """Main function for roadmap generation"""
+    # TODO: Load defense gap report
+    # TODO: Create implementation roadmap
+    # TODO: Calculate budget requirements
+    # TODO: Export roadmap
+    # TODO: Print summary
+
+if __name__ == "__main__":
+    main()
+Expected Outcomes
+Upon completing this lab, you should have:
+
+Navigator Layers:
+
+Baseline layer showing ATT&CK matrix structure
+APT29 threat mapping layer with scored techniques
+Defense coverage layer showing current capabilities
+Defense gap visualization layer
+Python Scripts:
+
+threat_mapper.py: Automates threat actor mapping
+defense_analyzer.py: Identifies and prioritizes defense gaps
+implementation_roadmap.py: Creates strategic improvement plan
+Analysis Reports:
+
+Defense gap analysis with categorized vulnerabilities
+Prioritized recommendations with specific controls
+Implementation roadmap with timelines and budget
+Key Insights:
+
+Understanding of APT29 attack patterns
+Clear visibility into defense coverage gaps
+Actionable plan for security improvements
+Troubleshooting Tips
+Navigator won't start:
+
+Check if port 4200 is already in use: lsof -i :4200
+Kill existing process: pkill -f angular
+Restart: npm start
+Script import errors:
+
+Verify Python version: python3 --version (should be 3.10+)
+Install missing modules: pip3 install <module_name>
+JSON file errors:
+
+Validate JSON syntax: python3 -m json.tool < file.json
+Check file permissions: ls -la *.json
+Ensure proper file paths in scripts
+Layer won't load in Navigator:
+
+Verify JSON structure matches Navigator format
+Check that "versions" field is present
+Ensure "techniques" is a list, not empty
+Conclusion
+This lab introduced you to threat mapping using the MITRE ATT&CK framework and Navigator tool. You learned to:
+
+Map real-world threat actor techniques systematically
+Identify defense gaps through comparative analysis
+Automate threat intelligence processes with Python
+Generate actionable security recommendations
+These skills form the foundation for threat-informed defense strategies. In production environments, you would:
+
+Continuously update threat mappings as intelligence evolves
+Integrate with SIEM and security tools for automated detection
+Conduct regular gap assessments to measure improvement
+Align security investments with actual threat landscape
+The ATT&CK framework provides a common language for discussing threats and defenses, enabling better communication between security teams and stakeholders. Continue practicing by mapping additional threat actors and refining your defense strategies based on organizational priorities.
