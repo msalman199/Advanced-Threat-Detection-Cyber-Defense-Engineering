@@ -1,0 +1,503 @@
+Monitor User Risk Behavior with ELK Stack
+Objectives
+By the end of this lab, students will be able to:
+
+Install and configure the ELK Stack (Elasticsearch, Logstash, Kibana) on Linux
+Create Python scripts to simulate user behavior and generate security logs
+Configure Logstash pipelines to parse and enrich user activity data
+Build Kibana dashboards to visualize user risk patterns
+Implement basic alerting for suspicious user activities
+Prerequisites
+Basic Linux command line proficiency
+Fundamental Python programming knowledge
+Understanding of JSON data format
+Basic cybersecurity concepts
+Familiarity with log analysis principles
+Lab Environment
+Pre-configured Cloud Machine Includes:
+
+Ubuntu 20.04 LTS
+Java 11 (ELK Stack requirement)
+Python 3.8+
+8GB RAM minimum
+Network access for package installation
+Click Start Lab to access your dedicated environment.
+
+Task 1: Install and Configure ELK Stack
+Step 1: Install Elasticsearch
+# Update system and install Java
+sudo apt update && sudo apt install openjdk-11-jdk -y
+
+# Add Elasticsearch repository
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-7.x.list
+
+# Install Elasticsearch
+sudo apt update && sudo apt install elasticsearch -y
+Step 2: Configure Elasticsearch
+Edit /etc/elasticsearch/elasticsearch.yml:
+
+cluster.name: user-behavior-monitoring
+node.name: node-1
+network.host: localhost
+http.port: 9200
+discovery.type: single-node
+xpack.security.enabled: false
+Start Elasticsearch:
+
+sudo systemctl start elasticsearch
+sudo systemctl enable elasticsearch
+sleep 30
+curl -X GET "localhost:9200/"
+Step 3: Install and Configure Logstash
+# Install Logstash
+sudo apt install logstash -y
+
+# Create configuration directory
+sudo mkdir -p /etc/logstash/conf.d
+Create /etc/logstash/conf.d/user-behavior.conf:
+
+input {
+  file {
+    path => "/var/log/user-behavior/*.log"
+    start_position => "beginning"
+    sincedb_path => "/dev/null"
+    codec => "json"
+  }
+}
+
+filter {
+  date {
+    match => [ "timestamp", "ISO8601" ]
+  }
+  
+  # TODO: Add risk scoring logic based on activity_type
+  # Hint: Use conditional statements and mutate filter
+  
+  mutate {
+    convert => { "risk_score" => "integer" }
+  }
+  
+  if [source_ip] {
+    geoip {
+      source => "source_ip"
+      target => "geoip"
+    }
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["localhost:9200"]
+    index => "user-behavior-%{+YYYY.MM.dd}"
+  }
+  stdout { codec => rubydebug }
+}
+Start Logstash:
+
+sudo systemctl start logstash
+sudo systemctl enable logstash
+Step 4: Install and Configure Kibana
+# Install Kibana
+sudo apt install kibana -y
+Edit /etc/kibana/kibana.yml:
+
+server.port: 5601
+server.host: "localhost"
+elasticsearch.hosts: ["http://localhost:9200"]
+Start Kibana:
+
+sudo mkdir -p /var/log/kibana
+sudo chown kibana:kibana /var/log/kibana
+sudo systemctl start kibana
+sudo systemctl enable kibana
+Step 5: Verify Installation
+# Check all services
+curl -X GET "localhost:9200/_cluster/health?pretty"
+sudo systemctl status logstash
+curl -I http://localhost:5601
+Task 2: Create User Behavior Simulation Scripts
+Step 1: Set Up Project Directory
+mkdir -p ~/user-behavior-lab
+cd ~/user-behavior-lab
+sudo mkdir -p /var/log/user-behavior
+sudo chmod 777 /var/log/user-behavior
+Step 2: Create Behavior Simulator (Starter Template)
+Create user_behavior_simulator.py:
+
+#!/usr/bin/env python3
+import json
+import random
+import time
+from datetime import datetime
+import logging
+
+class UserBehaviorSimulator:
+    def __init__(self, log_file_path="/var/log/user-behavior/user_activity.log"):
+        """
+        Initialize the user behavior simulator.
+        
+        Args:
+            log_file_path: Path to write activity logs
+        """
+        self.log_file_path = log_file_path
+        self.users = ["alice.johnson", "bob.smith", "charlie.brown", 
+                      "diana.prince", "eve.adams"]
+        self.activity_types = ["login", "logout", "file_access", 
+                               "failed_login", "privilege_escalation", 
+                               "data_access", "file_download"]
+        
+        # TODO: Set up logging configuration
+        # Hint: Use logging.basicConfig with filename and format
+        
+    def generate_risky_behavior(self):
+        """
+        Generate high-risk user activities.
+        
+        Returns:
+            List of risky activity dictionaries
+        """
+        risky_activities = []
+        
+        # TODO: Create failed login attempts (3-8 attempts)
+        # Include: timestamp, user, activity_type, source_ip, success=False
+        
+        # TODO: Create privilege escalation attempt
+        # Include: timestamp, user, activity_type, command, details
+        
+        # TODO: Create after-hours data access
+        # Include: timestamp (22-23 hours), user, activity_type, 
+        #          file_accessed, access_time="after_hours"
+        
+        # TODO: Create large file download
+        # Include: timestamp, user, activity_type, file_name, 
+        #          file_size (>5MB), destination
+        
+        return risky_activities
+    
+    def generate_normal_behavior(self):
+        """
+        Generate normal user activities.
+        
+        Returns:
+            List of normal activity dictionaries
+        """
+        normal_activities = []
+        
+        # TODO: Create normal login activity
+        # TODO: Create file access activity
+        # TODO: Create small file download
+        
+        return normal_activities
+    
+    def log_activity(self, activity):
+        """Log activity to file in JSON format."""
+        # TODO: Implement logging using self.logger
+        pass
+    
+    def simulate_continuous_behavior(self, duration_minutes=30):
+        """
+        Simulate user behavior for specified duration.
+        
+        Args:
+            duration_minutes: How long to run simulation
+        """
+        print(f"Starting simulation for {duration_minutes} minutes...")
+        start_time = time.time()
+        end_time = start_time + (duration_minutes * 60)
+        
+        while time.time() < end_time:
+            # TODO: Generate mix of normal (70%) and risky (30%) behaviors
+            # TODO: Log all activities
+            # TODO: Sleep 5-15 seconds between batches
+            pass
+        
+        print("Simulation completed!")
+
+if __name__ == "__main__":
+    simulator = UserBehaviorSimulator()
+    simulator.simulate_continuous_behavior(30)
+Step 3: Create Risk Analyzer (Starter Template)
+Create risk_analyzer.py:
+
+#!/usr/bin/env python3
+import json
+import requests
+from datetime import datetime
+from collections import defaultdict
+
+class UserRiskAnalyzer:
+    def __init__(self, elasticsearch_url="http://localhost:9200"):
+        """
+        Initialize risk analyzer.
+        
+        Args:
+            elasticsearch_url: Elasticsearch endpoint
+        """
+        self.es_url = elasticsearch_url
+        self.risk_thresholds = {
+            "low": 0,
+            "medium": 5,
+            "high": 8,
+            "critical": 10
+        }
+    
+    def query_elasticsearch(self, query):
+        """
+        Query Elasticsearch for user behavior data.
+        
+        Args:
+            query: Elasticsearch query dictionary
+            
+        Returns:
+            Query results or None on error
+        """
+        # TODO: Implement POST request to Elasticsearch
+        # Endpoint: f"{self.es_url}/user-behavior-*/_search"
+        # Headers: {"Content-Type": "application/json"}
+        pass
+    
+    def get_user_risk_scores(self, time_range_hours=24):
+        """
+        Calculate risk scores for all users.
+        
+        Args:
+            time_range_hours: Time window for analysis
+            
+        Returns:
+            Dictionary of user risk data
+        """
+        query = {
+            "size": 0,
+            "query": {
+                "range": {
+                    "@timestamp": {"gte": f"now-{time_range_hours}h"}
+                }
+            },
+            "aggs": {
+                "users": {
+                    "terms": {"field": "user.keyword", "size": 100},
+                    "aggs": {
+                        "total_risk": {"sum": {"field": "risk_score"}},
+                        "avg_risk": {"avg": {"field": "risk_score"}}
+                    }
+                }
+            }
+        }
+        
+        # TODO: Execute query and parse results
+        # TODO: Return dictionary with user risk data
+        pass
+    
+    def categorize_risk(self, risk_score):
+        """Categorize risk score into levels."""
+        # TODO: Implement risk categorization logic
+        pass
+    
+    def get_risky_activities(self, min_risk_score=6):
+        """
+        Get activities with high risk scores.
+        
+        Args:
+            min_risk_score: Minimum risk threshold
+            
+        Returns:
+            List of risky activities
+        """
+        # TODO: Build query for high-risk activities
+        # TODO: Sort by risk_score descending
+        # TODO: Return list of activity dictionaries
+        pass
+    
+    def generate_risk_report(self):
+        """Generate and print comprehensive risk report."""
+        print("=" * 60)
+        print("USER BEHAVIOR RISK ANALYSIS REPORT")
+        print("=" * 60)
+        
+        # TODO: Get and display user risk scores
+        # TODO: Get and display risky activities
+        # TODO: Format output clearly
+        pass
+
+if __name__ == "__main__":
+    analyzer = UserRiskAnalyzer()
+    time.sleep(30)  # Wait for data indexing
+    analyzer.generate_risk_report()
+Step 4: Run Simulation
+# Make scripts executable
+chmod +x user_behavior_simulator.py risk_analyzer.py
+
+# Install dependencies
+pip3 install requests
+
+# Run simulator (in background)
+python3 user_behavior_simulator.py &
+
+# Monitor logs
+tail -f /var/log/user-behavior/user_activity.log
+Task 3: Build Kibana Dashboards
+Step 1: Create Index Pattern
+Access Kibana at http://localhost:5601
+Navigate to Management > Stack Management > Index Patterns
+Click Create index pattern
+Enter: user-behavior-*
+Select @timestamp as time field
+Click Create
+Step 2: Create Visualizations
+Risk Score Distribution (Bar Chart):
+
+Go to Visualize Library > Create visualization
+Select Vertical Bar
+Y-axis: Count
+X-axis: Terms aggregation on risk_score
+Save as "Risk Score Distribution"
+Top Risky Users (Data Table):
+
+Create Data Table visualization
+Metrics: Sum of risk_score
+Buckets: Terms on user.keyword, order by metric descending
+Save as "Top Risky Users"
+Activity Timeline (Line Chart):
+
+Create Line visualization
+Y-axis: Count
+X-axis: Date Histogram on @timestamp
+Save as "Activity Timeline"
+Activity Type Breakdown (Pie Chart):
+
+Create Pie visualization
+Slice by: Terms on activity_type.keyword
+Save as "Activity Types"
+Step 3: Build Dashboard
+Go to Dashboard > Create dashboard
+Click Add and select all visualizations
+Arrange visualizations logically
+Set time range to Last 1 hour
+Enable Auto-refresh (10 seconds)
+Save as "User Behavior Risk Monitoring"
+Step 4: Create Alert Monitor (Starter Template)
+Create alert_monitor.py:
+
+#!/usr/bin/env python3
+import requests
+import time
+from datetime import datetime
+
+class AlertMonitor:
+    def __init__(self, elasticsearch_url="http://localhost:9200"):
+        """Initialize alert monitoring system."""
+        self.es_url = elasticsearch_url
+        self.alert_threshold = 15
+    
+    def check_high_risk_users(self):
+        """
+        Check for users exceeding risk threshold.
+        
+        Returns:
+            List of alert dictionaries
+        """
+        # TODO: Build aggregation query for user risk scores
+        # TODO: Filter users above threshold
+        # TODO: Return list of alerts
+        pass
+    
+    def send_alert(self, alert):
+        """
+        Send alert notification.
+        
+        Args:
+            alert: Alert dictionary with user and risk data
+        """
+        # TODO: Format and print alert message
+        # TODO: In production, send email/SMS/webhook
+        pass
+    
+    def monitor_continuously(self):
+        """Continuously monitor for high-risk behavior."""
+        print("Starting continuous monitoring...")
+        while True:
+            # TODO: Check for alerts every 60 seconds
+            # TODO: Send alerts when threshold exceeded
+            pass
+
+if __name__ == "__main__":
+    monitor = AlertMonitor()
+    monitor.monitor_continuously()
+Expected Outcomes
+After completing this lab, you should have:
+
+Fully functional ELK Stack processing user behavior logs
+Python scripts generating realistic user activity data
+Logstash pipeline enriching logs with risk scores
+Kibana dashboards visualizing user risk patterns
+Basic alerting system for suspicious activities
+Understanding of security monitoring workflows
+Key Metrics to Observe:
+
+User risk score distributions
+Failed login attempt patterns
+After-hours access anomalies
+Large file transfer activities
+Privilege escalation attempts
+Troubleshooting Tips
+Elasticsearch won't start:
+
+# Check logs
+sudo journalctl -u elasticsearch -f
+
+# Verify Java installation
+java -version
+
+# Check disk space
+df -h
+No data in Kibana:
+
+# Verify logs are being created
+ls -la /var/log/user-behavior/
+
+# Check Elasticsearch indices
+curl -X GET "localhost:9200/_cat/indices?v"
+
+# Test Logstash configuration
+sudo /usr/share/logstash/bin/logstash --config.test_and_exit \
+  --path.config=/etc/logstash/conf.d/
+Logstash not processing logs:
+
+# Check Logstash logs
+sudo tail -f /var/log/logstash/logstash-plain.log
+
+# Restart Logstash
+sudo systemctl restart logstash
+
+# Verify file permissions
+ls -la /var/log/user-behavior/
+Python script errors:
+
+# Install missing packages
+pip3 install requests
+
+# Fix log directory permissions
+sudo chmod 777 /var/log/user-behavior/
+Conclusion
+This lab demonstrated building a complete user behavior monitoring system using the ELK Stack. You learned to:
+
+Deploy and configure Elasticsearch, Logstash, and Kibana
+Generate realistic security event data with Python
+Process and enrich logs with risk scoring
+Visualize security metrics through interactive dashboards
+Implement basic alerting for anomalous behavior
+Key Takeaways:
+
+ELK Stack provides powerful log aggregation and analysis
+Risk scoring helps prioritize security investigations
+Real-time dashboards enable proactive threat detection
+Automated alerting reduces response time to incidents
+Next Steps:
+
+Implement machine learning anomaly detection
+Add correlation rules for complex attack patterns
+Integrate with SIEM platforms
+Develop automated response workflows
+Scale to distributed ELK cluster for production use
+This foundation prepares you for advanced security operations and threat hunting activities in enterprise environments.
