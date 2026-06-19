@@ -1,0 +1,515 @@
+TLS Anomaly Detection with JA3 + Zeek
+Objectives
+By the end of this lab, students will be able to:
+
+Understand JA3 fingerprinting fundamentals for TLS traffic analysis
+Configure Zeek network security monitor for TLS monitoring
+Implement JA3-based anomaly detection mechanisms
+Create automated Python scripts for TLS anomaly alerting
+Analyze TLS traffic patterns to identify security threats
+Prerequisites
+Basic understanding of TLS/SSL protocols
+Linux command line proficiency
+Python programming fundamentals
+Network security concepts knowledge
+Experience with log analysis
+Lab Environment
+Al Nafi Cloud Machine Setup: This lab runs on a single Linux-based cloud machine. Click Start Lab to access your pre-configured Ubuntu 20.04 LTS environment with 4GB RAM and 20GB disk space. No additional setup required.
+
+Task 1: Implement JA3 Fingerprint Generation
+Step 1.1: Install Dependencies and Setup Environment
+# Update system and install required packages
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y python3 python3-pip git curl build-essential
+
+# Install Python packages
+pip3 install pandas numpy requests
+
+# Create working directory
+mkdir -p ~/tls-anomaly-lab
+cd ~/tls-anomaly-lab
+Step 1.2: Create JA3 Generator Class
+Create ja3_generator.py with the following starter template:
+
+#!/usr/bin/env python3
+
+import hashlib
+import json
+from collections import defaultdict
+
+class JA3Generator:
+    def __init__(self):
+        self.ja3_database = {}
+        self.anomaly_threshold = 0.1
+        
+    def generate_ja3(self, tls_version, cipher_suites, extensions, 
+                     elliptic_curves, ec_point_formats):
+        """
+        Generate JA3 fingerprint from TLS parameters.
+        
+        Args:
+            tls_version: TLS version number
+            cipher_suites: List of cipher suite IDs
+            extensions: List of extension IDs
+            elliptic_curves: List of elliptic curve IDs
+            ec_point_formats: List of EC point format IDs
+            
+        Returns:
+            Tuple of (ja3_hash, ja3_string)
+        """
+        # TODO: Convert lists to comma-separated strings
+        # TODO: Create JA3 string format: "version,ciphers,extensions,curves,formats"
+        # TODO: Generate MD5 hash of JA3 string
+        # TODO: Return both hash and original string
+        pass
+    
+    def load_baseline_ja3(self, baseline_file):
+        """
+        Load baseline JA3 fingerprints from JSON file.
+        
+        Args:
+            baseline_file: Path to baseline JSON file
+        """
+        # TODO: Load JSON file into ja3_database
+        # TODO: Handle FileNotFoundError for new databases
+        # TODO: Print number of loaded fingerprints
+        pass
+    
+    def update_baseline(self, ja3_hash, metadata):
+        """
+        Update baseline database with new JA3 observation.
+        
+        Args:
+            ja3_hash: JA3 fingerprint hash
+            metadata: Dictionary with timestamp, source_ip, user_agent
+        """
+        # TODO: Check if ja3_hash exists in database
+        # TODO: If new, create entry with count=1 and metadata
+        # TODO: If exists, increment count and update last_seen
+        # TODO: Track unique user_agents and source_ips
+        pass
+    
+    def detect_anomaly(self, ja3_hash, metadata):
+        """
+        Detect if JA3 fingerprint is anomalous.
+        
+        Args:
+            ja3_hash: JA3 fingerprint to check
+            metadata: Connection metadata
+            
+        Returns:
+            Tuple of (is_anomaly: bool, reason: str)
+        """
+        # TODO: Calculate total connections
+        # TODO: Check if JA3 is new (not in database)
+        # TODO: Calculate fingerprint frequency
+        # TODO: Compare frequency against threshold
+        # TODO: Check for suspicious user agent combinations
+        # TODO: Return anomaly status and reason
+        pass
+    
+    def save_baseline(self, baseline_file):
+        """
+        Save current JA3 database to JSON file.
+        
+        Args:
+            baseline_file: Output file path
+        """
+        # TODO: Write ja3_database to JSON file
+        # TODO: Use indent=2 for readability
+        pass
+
+# Test the implementation
+if __name__ == "__main__":
+    generator = JA3Generator()
+    
+    # Sample test case
+    test_tls = {
+        'tls_version': 771,
+        'cipher_suites': [49195, 49199, 52393, 52392],
+        'extensions': [0, 23, 65281, 10, 11],
+        'elliptic_curves': [29, 23, 24],
+        'ec_point_formats': [0],
+        'metadata': {
+            'timestamp': '2024-01-15 10:30:00',
+            'source_ip': '192.168.1.100',
+            'user_agent': 'Mozilla/5.0'
+        }
+    }
+    
+    # TODO: Test generate_ja3 function
+    # TODO: Test detect_anomaly function
+    # TODO: Test update_baseline function
+    # TODO: Save baseline to file
+Step 1.3: Test JA3 Implementation
+# Make script executable
+chmod +x ~/tls-anomaly-lab/ja3_generator.py
+
+# Run tests
+python3 ja3_generator.py
+
+# Verify baseline file creation
+cat ja3_baseline.json | python3 -m json.tool
+Task 2: Configure Zeek for TLS Monitoring
+Step 2.1: Install Zeek Network Monitor
+# Install Zeek dependencies
+sudo apt install -y cmake make gcc g++ flex bison libpcap-dev \
+    libssl-dev python3-dev swig zlib1g-dev
+
+# Download Zeek
+cd ~/tls-anomaly-lab
+wget https://download.zeek.org/zeek-4.2.1.tar.gz
+tar -xzf zeek-4.2.1.tar.gz
+cd zeek-4.2.1
+
+# Configure and install
+./configure --prefix=/opt/zeek
+make -j$(nproc)
+sudo make install
+
+# Add to PATH
+echo 'export PATH=/opt/zeek/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+
+# Verify installation
+zeek --version
+Step 2.2: Create Zeek TLS Monitoring Script
+Create ~/tls-anomaly-lab/zeek-scripts/tls-anomaly.zeek:
+
+##! TLS Anomaly Detection with JA3 Integration
+
+@load base/protocols/ssl
+
+module TLSAnomaly;
+
+export {
+    redef enum Log::ID += { LOG };
+    
+    type Info: record {
+        ts: time &log;
+        uid: string &log;
+        id: conn_id &log;
+        ja3: string &log &optional;
+        server_name: string &log &optional;
+        anomaly_type: string &log &optional;
+        anomaly_score: double &log &optional;
+    };
+    
+    const anomaly_threshold = 0.1;
+    global ja3_database: table[string] of count &default=0;
+    global total_connections = 0;
+}
+
+event zeek_init() {
+    Log::create_stream(TLSAnomaly::LOG, [$columns=Info, $path="tls-anomaly"]);
+}
+
+function generate_ja3(c: connection, ssl: SSL::Info): string {
+    # TODO: Extract TLS version from ssl$version
+    # TODO: Build cipher suites string from ssl$cipher_suites
+    # TODO: Build extensions string from ssl$extensions
+    # TODO: Build elliptic curves string from ssl$elliptic_curves
+    # TODO: Build EC point formats string from ssl$ec_point_formats
+    # TODO: Construct JA3 string and return MD5 hash
+    return "";
+}
+
+function detect_anomaly(ja3: string): tuple[bool, string, double] {
+    # TODO: Check if JA3 is new
+    # TODO: Calculate frequency if exists
+    # TODO: Determine anomaly type and score
+    # TODO: Return tuple of (is_anomaly, type, score)
+    return [F, "normal", 0.0];
+}
+
+event ssl_established(c: connection) {
+    # TODO: Check if SSL info exists
+    # TODO: Generate JA3 fingerprint
+    # TODO: Update ja3_database and total_connections
+    # TODO: Detect anomalies
+    # TODO: Log if anomaly detected
+}
+
+event zeek_done() {
+    # TODO: Print summary statistics
+    # TODO: Print top JA3 fingerprints
+}
+Step 2.3: Configure Zeek for Network Capture
+# Create configuration directory
+mkdir -p ~/tls-anomaly-lab/zeek-config
+
+# Create local.zeek
+cat > ~/tls-anomaly-lab/zeek-config/local.zeek << 'EOF'
+@load base/protocols/ssl
+@load base/protocols/http
+@load ../zeek-scripts/tls-anomaly.zeek
+
+redef SSL::log_server_cert_hash = T;
+EOF
+
+# Create networks.cfg
+cat > ~/tls-anomaly-lab/zeek-config/networks.cfg << 'EOF'
+192.168.0.0/16    Private
+10.0.0.0/8        Private
+172.16.0.0/12     Private
+EOF
+
+# Create node.cfg
+cat > ~/tls-anomaly-lab/zeek-config/node.cfg << 'EOF'
+[zeek]
+type=standalone
+host=localhost
+interface=lo
+EOF
+Step 2.4: Generate Test TLS Traffic
+Create generate_tls_traffic.py:
+
+#!/usr/bin/env python3
+
+import requests
+import time
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+class TLSTrafficGenerator:
+    def __init__(self):
+        self.target_sites = [
+            'https://www.google.com',
+            'https://www.github.com',
+            'https://httpbin.org/get'
+        ]
+        
+        self.user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0',
+            'curl/7.68.0',
+            'python-requests/2.25.1'
+        ]
+    
+    def make_request(self, url, user_agent):
+        """
+        Make HTTPS request with specified user agent.
+        
+        Args:
+            url: Target URL
+            user_agent: User agent string
+        """
+        # TODO: Create headers with user agent
+        # TODO: Make GET request with timeout
+        # TODO: Print status code
+        # TODO: Handle exceptions
+        pass
+    
+    def generate_normal_traffic(self, duration=60):
+        """
+        Generate normal TLS traffic patterns.
+        
+        Args:
+            duration: How long to generate traffic (seconds)
+        """
+        # TODO: Loop for specified duration
+        # TODO: Make requests to target sites
+        # TODO: Use common user agents
+        # TODO: Add delays between requests
+        pass
+    
+    def generate_anomalous_traffic(self, duration=30):
+        """
+        Generate anomalous TLS traffic patterns.
+        
+        Args:
+            duration: How long to generate traffic (seconds)
+        """
+        # TODO: Define suspicious user agents
+        # TODO: Make requests with unusual patterns
+        # TODO: Vary timing and targets
+        pass
+
+if __name__ == "__main__":
+    generator = TLSTrafficGenerator()
+    # TODO: Run traffic generation
+Task 3: Automate Anomaly Detection and Alerting
+Step 3.1: Create Real-time Log Monitor
+Create tls_anomaly_monitor.py:
+
+#!/usr/bin/env python3
+
+import os
+import time
+import json
+import logging
+from datetime import datetime
+from collections import defaultdict, deque
+
+class TLSAnomalyMonitor:
+    def __init__(self, log_directory="/tmp/zeek-logs", alert_threshold=0.8):
+        self.log_directory = log_directory
+        self.alert_threshold = alert_threshold
+        self.anomaly_buffer = deque(maxlen=1000)
+        self.alert_history = defaultdict(int)
+        self.setup_logging()
+        
+    def setup_logging(self):
+        """Configure logging to file and console."""
+        # TODO: Setup logging with INFO level
+        # TODO: Add file and stream handlers
+        # TODO: Set format with timestamp
+        pass
+    
+    def parse_zeek_log_line(self, line):
+        """
+        Parse single line from Zeek TLS anomaly log.
+        
+        Args:
+            line: Log line string
+            
+        Returns:
+            Dictionary with parsed fields or None
+        """
+        # TODO: Skip comments and empty lines
+        # TODO: Split tab-separated values
+        # TODO: Map fields to dictionary
+        # TODO: Handle parsing errors
+        pass
+    
+    def analyze_anomaly(self, record):
+        """
+        Analyze anomaly record and determine alert level.
+        
+        Args:
+            record: Parsed log record
+            
+        Returns:
+            Alert dictionary or None
+        """
+        # TODO: Check if anomaly score exceeds threshold
+        # TODO: Determine alert level (LOW/MEDIUM/HIGH/CRITICAL)
+        # TODO: Identify specific reasons for alert
+        # TODO: Check for suspicious patterns
+        # TODO: Return alert data structure
+        pass
+    
+    def generate_alert(self, alert_data):
+        """
+        Generate and log alert.
+        
+        Args:
+            alert_data: Alert information dictionary
+        """
+        # TODO: Create alert key for rate limiting
+        # TODO: Format alert message
+        # TODO: Log warning
+        # TODO: Save to alert file
+        # TODO: Send notification
+        pass
+    
+    def send_notification(self, alert_data):
+        """
+        Send alert notification (email, Slack, etc.).
+        
+        Args:
+            alert_data: Alert information
+        """
+        # TODO: Implement notification mechanism
+        # TODO: Could send email via SMTP
+        # TODO: Could post to Slack webhook
+        # TODO: Could write to syslog
+        pass
+    
+    def process_log_file(self, file_path):
+        """
+        Process complete Zeek log file.
+        
+        Args:
+            file_path: Path to log file
+        """
+        # TODO: Open and read log file
+        # TODO: Parse each line
+        # TODO: Analyze for anomalies
+        # TODO: Generate alerts as needed
+        # TODO: Add records to buffer
+        pass
+    
+    def monitor_directory(self):
+        """Monitor log directory for new entries."""
+        # TODO: Watch log directory for changes
+        # TODO: Process new log entries
+        # TODO: Handle file rotation
+        pass
+    
+    def generate_summary_report(self):
+        """Generate summary report of detected anomalies."""
+        # TODO: Analyze anomaly_buffer
+        # TODO: Calculate statistics
+        # TODO: Identify top anomalies
+        # TODO: Generate report file
+        pass
+
+if __name__ == "__main__":
+    monitor = TLSAnomalyMonitor()
+    # TODO: Start monitoring
+    # TODO: Generate periodic reports
+Step 3.2: Create Alert Configuration
+Create alert_config.json:
+
+{
+  "alert_thresholds": {
+    "critical": 0.9,
+    "high": 0.8,
+    "medium": 0.6,
+    "low": 0.4
+  },
+  "notification_settings": {
+    "email_enabled": false,
+    "email_recipients": ["admin@example.com"],
+    "slack_enabled": false,
+    "slack_webhook": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  },
+  "rate_limiting": {
+    "max_alerts_per_ja3": 5,
+    "time_window_seconds": 3600
+  },
+  "suspicious_patterns": {
+    "user_agents": ["bot", "malware", "scanner"],
+    "domains": ["bit.ly", "tinyurl.com", "pastebin.com"]
+  }
+}
+Step 3.3: Run Complete Detection Pipeline
+# Terminal 1: Start Zeek monitoring
+cd ~/tls-anomaly-lab
+zeek -C -i lo zeek-config/local.zeek
+
+# Terminal 2: Generate test traffic
+python3 generate_tls_traffic.py
+
+# Terminal 3: Monitor for anomalies
+python3 tls_anomaly_monitor.py
+
+# View generated alerts
+cat alerts_*.json | python3 -m json.tool
+Expected Outcomes
+After completing this lab, you should have:
+
+Working JA3 fingerprint generator with anomaly detection
+Configured Zeek instance monitoring TLS traffic
+Real-time alerting system for TLS anomalies
+Generated baseline of normal TLS patterns
+Alert logs showing detected anomalies
+Understanding of TLS fingerprinting techniques
+Troubleshooting Tips
+Zeek not capturing traffic:
+
+Verify network interface: ip addr show
+Check Zeek is running: ps aux | grep zeek
+Review Zeek logs: cat /opt/zeek/logs/current/stderr.log
+No anomalies detected:
+
+Lower anomaly threshold in configuration
+Verify traffic is being generated
+Check Zeek log output: cat tls-anomaly.log
+Python import errors:
+
+Reinstall packages: pip3 install --upgrade pandas numpy requests
+Check Python version: python3 --version (should be 3.6+)
+Conclusion
+This lab demonstrated TLS anomaly detection using JA3 fingerprinting and Zeek network monitoring. You implemented fingerprint generation, configured network monitoring, and created automated alerting systems. These techniques are essential for detecting malicious TLS traffic, identifying C2 communications, and monitoring for SSL/TLS-based threats in production environments. Continue practicing by analyzing real network captures and tuning detection thresholds for your specific environment.
