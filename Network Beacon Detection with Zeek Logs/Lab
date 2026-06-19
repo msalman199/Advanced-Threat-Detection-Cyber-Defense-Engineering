@@ -1,0 +1,604 @@
+Network Beacon Detection with Zeek Logs
+Objectives
+By the end of this lab, students will be able to:
+
+Deploy and configure Zeek network security monitor for traffic analysis
+Identify network beaconing patterns using statistical methods
+Develop Python scripts for automated beacon detection
+Implement alerting mechanisms for suspicious network behavior
+Create visualizations for network security monitoring
+Prerequisites
+Basic understanding of TCP/IP networking and common protocols
+Linux command line proficiency
+Python programming fundamentals
+Familiarity with log analysis concepts
+Basic statistics knowledge (mean, standard deviation, variance)
+Lab Environment
+Your Al Nafi cloud machine includes:
+
+Ubuntu 20.04 LTS
+Pre-installed development tools
+Network capture capabilities
+Python 3.8+ with pip
+Click Start Lab to access your pre-configured environment.
+
+Task 1: Install and Configure Zeek
+Step 1.1: Install Zeek from Package Repository
+# Add Zeek repository
+echo 'deb http://download.opensuse.org/repositories/security:/zeek/xUbuntu_20.04/ /' | sudo tee /etc/apt/sources.list.d/security:zeek.list
+curl -fsSL https://download.opensuse.org/repositories/security:zeek/xUbuntu_20.04/Release.key | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/security_zeek.gpg > /dev/null
+
+# Install Zeek
+sudo apt update
+sudo apt install -y zeek
+
+# Add Zeek to PATH
+echo 'export PATH=/opt/zeek/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+Step 1.2: Configure Network Interface
+# Identify your network interface
+ip addr show
+
+# Configure Zeek node (replace eth0 with your interface)
+sudo tee /opt/zeek/etc/node.cfg << 'EOF'
+[zeek]
+type=standalone
+host=localhost
+interface=eth0
+EOF
+
+# Configure monitored networks
+sudo tee /opt/zeek/etc/networks.cfg << 'EOF'
+10.0.0.0/8          Private IP space
+172.16.0.0/12       Private IP space
+192.168.0.0/16      Private IP space
+EOF
+Step 1.3: Create Custom Beacon Detection Script
+Create /opt/zeek/share/zeek/site/beacon-detect.zeek:
+
+# TODO: Load required base scripts for connection and protocol analysis
+
+module BeaconDetect;
+
+export {
+    # TODO: Define configurable thresholds for beacon detection
+    # - Minimum connection count
+    # - Maximum interval variance
+    # - Minimum observation duration
+    
+    # TODO: Create log stream for beacon alerts
+    
+    # TODO: Define Info record type with fields:
+    # - timestamp, connection ID, source/dest IPs and ports
+    # - connection statistics (count, intervals, variance)
+    # - beacon confidence score
+}
+
+# TODO: Create global table to track connections per IP pair
+
+event zeek_init() {
+    # TODO: Initialize the beacon detection log stream
+}
+
+event connection_established(c: connection) {
+    # TODO: Extract source IP, destination IP, and port
+    # TODO: Add timestamp to tracking table
+    # TODO: If sufficient connections exist, call analysis function
+}
+
+function analyze_intervals(timestamps: vector of time): double {
+    # TODO: Calculate time intervals between connections
+    # TODO: Compute mean and standard deviation
+    # TODO: Calculate coefficient of variation (CV)
+    # TODO: Return beacon score (lower CV = higher score)
+    return 0.0;
+}
+
+function check_beacon_pattern(c: connection, times: vector of time) {
+    # TODO: Call analyze_intervals() to get beacon score
+    # TODO: If score exceeds threshold, log beacon alert
+    # TODO: Include connection details and statistics in log
+}
+Load the script in /opt/zeek/share/zeek/site/local.zeek:
+
+@load ./beacon-detect.zeek
+Step 1.4: Start Zeek and Verify Operation
+# Deploy Zeek configuration
+sudo zeekctl deploy
+
+# Check status
+sudo zeekctl status
+
+# View current logs
+ls -lh /opt/zeek/logs/current/
+
+# Monitor conn.log in real-time
+tail -f /opt/zeek/logs/current/conn.log
+Task 2: Develop Python Beacon Detection Scripts
+Step 2.1: Setup Python Environment
+# Create project directory
+mkdir -p ~/beacon-detection
+cd ~/beacon-detection
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install pandas numpy scipy matplotlib seaborn
+Step 2.2: Create Zeek Log Parser
+Create zeek_parser.py:
+
+#!/usr/bin/env python3
+import pandas as pd
+import logging
+from pathlib import Path
+
+class ZeekLogParser:
+    """Parse Zeek TSV log files into pandas DataFrames"""
+    
+    def __init__(self, log_dir: str = "/opt/zeek/logs/current"):
+        self.log_dir = Path(log_dir)
+        self.logger = self._setup_logging()
+    
+    def _setup_logging(self):
+        """Configure logging"""
+        # TODO: Setup logging with INFO level
+        # TODO: Return logger instance
+        pass
+    
+    def parse_log(self, log_name: str) -> pd.DataFrame:
+        """
+        Parse a Zeek log file.
+        
+        Args:
+            log_name: Name of log file (e.g., 'conn.log')
+        
+        Returns:
+            DataFrame with parsed log data
+        """
+        # TODO: Read log file from self.log_dir / log_name
+        # TODO: Skip comment lines starting with '#'
+        # TODO: Extract column names from '#fields' line
+        # TODO: Parse data lines into DataFrame
+        # TODO: Convert 'ts' column to datetime
+        # TODO: Handle missing values ('-' in Zeek logs)
+        pass
+    
+    def get_connections(self) -> pd.DataFrame:
+        """Parse connection log"""
+        return self.parse_log('conn.log')
+    
+    def get_http_requests(self) -> pd.DataFrame:
+        """Parse HTTP log"""
+        return self.parse_log('http.log')
+    
+    def get_dns_queries(self) -> pd.DataFrame:
+        """Parse DNS log"""
+        return self.parse_log('dns.log')
+
+if __name__ == "__main__":
+    parser = ZeekLogParser()
+    conn_df = parser.get_connections()
+    print(f"Loaded {len(conn_df)} connections")
+    print(conn_df.head())
+Step 2.3: Implement Beacon Detection Algorithm
+Create beacon_detector.py:
+
+#!/usr/bin/env python3
+import pandas as pd
+import numpy as np
+from scipy import stats
+from typing import List, Tuple
+from zeek_parser import ZeekLogParser
+
+class BeaconDetector:
+    """Detect network beaconing using statistical analysis"""
+    
+    def __init__(self, min_connections: int = 10, max_cv: float = 0.3):
+        self.parser = ZeekLogParser()
+        self.min_connections = min_connections
+        self.max_cv = max_cv  # Coefficient of variation threshold
+    
+    def calculate_intervals(self, timestamps: pd.Series) -> np.ndarray:
+        """
+        Calculate time intervals between connections.
+        
+        Args:
+            timestamps: Series of connection timestamps
+        
+        Returns:
+            Array of intervals in seconds
+        """
+        # TODO: Sort timestamps
+        # TODO: Calculate differences between consecutive timestamps
+        # TODO: Convert to seconds
+        # TODO: Return interval array
+        pass
+    
+    def calculate_beacon_score(self, intervals: np.ndarray) -> dict:
+        """
+        Calculate beacon statistics and confidence score.
+        
+        Args:
+            intervals: Array of time intervals
+        
+        Returns:
+            Dictionary with statistics and beacon score
+        """
+        # TODO: Calculate mean interval
+        # TODO: Calculate standard deviation
+        # TODO: Calculate coefficient of variation (CV = std/mean)
+        # TODO: Calculate beacon score (1.0 - CV, capped at 1.0)
+        # TODO: Return dict with mean, std, cv, score
+        pass
+    
+    def detect_connection_beacons(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Detect beaconing in connection logs.
+        
+        Args:
+            df: DataFrame with connection log data
+        
+        Returns:
+            DataFrame with detected beacons
+        """
+        # TODO: Group by (source_ip, dest_ip, dest_port)
+        # TODO: For each group with >= min_connections:
+        #   - Extract timestamps
+        #   - Calculate intervals
+        #   - Calculate beacon score
+        #   - If CV <= max_cv, add to results
+        # TODO: Return DataFrame with beacon candidates
+        pass
+    
+    def detect_http_beacons(self) -> pd.DataFrame:
+        """Detect HTTP beaconing patterns"""
+        # TODO: Parse HTTP log
+        # TODO: Group by (source_ip, host, uri)
+        # TODO: Apply same interval analysis as connections
+        # TODO: Return HTTP beacon candidates
+        pass
+    
+    def detect_dns_beacons(self) -> pd.DataFrame:
+        """Detect DNS beaconing patterns"""
+        # TODO: Parse DNS log
+        # TODO: Group by (source_ip, query_domain)
+        # TODO: Apply interval analysis
+        # TODO: Return DNS beacon candidates
+        pass
+    
+    def generate_report(self) -> dict:
+        """
+        Generate comprehensive beacon detection report.
+        
+        Returns:
+            Dictionary with detection results and summary
+        """
+        # TODO: Load connection data
+        # TODO: Run all detection methods
+        # TODO: Compile results into report dictionary
+        # TODO: Include summary statistics
+        pass
+
+if __name__ == "__main__":
+    detector = BeaconDetector()
+    report = detector.generate_report()
+    
+    print("=== Beacon Detection Report ===")
+    # TODO: Display report summary
+    # TODO: Show top beacon candidates
+Step 2.4: Create Visualization Module
+Create visualizer.py:
+
+#!/usr/bin/env python3
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+
+class BeaconVisualizer:
+    """Create visualizations for beacon detection results"""
+    
+    def __init__(self):
+        sns.set_style("whitegrid")
+    
+    def plot_beacon_scores(self, beacon_df: pd.DataFrame, output_file: str):
+        """
+        Create histogram of beacon confidence scores.
+        
+        Args:
+            beacon_df: DataFrame with beacon detection results
+            output_file: Path to save plot
+        """
+        # TODO: Create figure with appropriate size
+        # TODO: Plot histogram of beacon_score column
+        # TODO: Add labels and title
+        # TODO: Save to output_file
+        pass
+    
+    def plot_interval_distribution(self, intervals: list, title: str, output_file: str):
+        """
+        Plot distribution of connection intervals.
+        
+        Args:
+            intervals: List of time intervals
+            title: Plot title
+            output_file: Path to save plot
+        """
+        # TODO: Create histogram of intervals
+        # TODO: Add mean and std deviation lines
+        # TODO: Label axes appropriately
+        # TODO: Save plot
+        pass
+    
+    def plot_beacon_timeline(self, timestamps: pd.Series, output_file: str):
+        """
+        Create timeline visualization of beacon connections.
+        
+        Args:
+            timestamps: Series of connection timestamps
+            output_file: Path to save plot
+        """
+        # TODO: Create scatter plot with time on x-axis
+        # TODO: Show connection events as points
+        # TODO: Add trend line if applicable
+        # TODO: Save visualization
+        pass
+    
+    def create_dashboard(self, report: dict, output_dir: str):
+        """
+        Create comprehensive dashboard with multiple plots.
+        
+        Args:
+            report: Beacon detection report dictionary
+            output_dir: Directory to save dashboard plots
+        """
+        # TODO: Create subplot grid (2x2 or 3x2)
+        # TODO: Plot beacon score distribution
+        # TODO: Plot top destination IPs
+        # TODO: Plot detection timeline
+        # TODO: Plot protocol distribution
+        # TODO: Save complete dashboard
+        pass
+Task 3: Generate Test Traffic and Analyze Results
+Step 3.1: Create Traffic Generator
+Create traffic_generator.py:
+
+#!/usr/bin/env python3
+import requests
+import time
+import random
+import socket
+from datetime import datetime
+
+class TrafficGenerator:
+    """Generate network traffic for testing beacon detection"""
+    
+    def generate_http_beacon(self, url: str, interval: int, jitter: float, count: int):
+        """
+        Generate HTTP beacon traffic.
+        
+        Args:
+            url: Target URL
+            interval: Base interval in seconds
+            jitter: Jitter factor (0.0-1.0)
+            count: Number of requests
+        """
+        # TODO: Loop for count iterations
+        # TODO: Make HTTP GET request to url
+        # TODO: Sleep for interval +/- random jitter
+        # TODO: Log each request with timestamp
+        pass
+    
+    def generate_dns_beacon(self, domain: str, interval: int, count: int):
+        """Generate DNS beacon traffic"""
+        # TODO: Loop for count iterations
+        # TODO: Perform DNS lookup for domain
+        # TODO: Sleep for interval seconds
+        # TODO: Log each query
+        pass
+    
+    def generate_normal_traffic(self, duration: int):
+        """Generate random non-beaconing traffic"""
+        # TODO: Create list of various URLs and domains
+        # TODO: Loop for duration seconds
+        # TODO: Randomly make HTTP requests or DNS queries
+        # TODO: Use random intervals (not regular)
+        pass
+
+if __name__ == "__main__":
+    gen = TrafficGenerator()
+    
+    # Generate beacon traffic for testing
+    print("Generating HTTP beacon...")
+    gen.generate_http_beacon("http://httpbin.org/get", 60, 0.1, 20)
+    
+    print("Generating DNS beacon...")
+    gen.generate_dns_beacon("example.com", 30, 20)
+Step 3.2: Run Detection Analysis
+# Start Zeek if not running
+sudo zeekctl start
+
+# Generate test traffic (in separate terminal)
+python3 traffic_generator.py &
+
+# Wait for traffic generation (5-10 minutes)
+sleep 600
+
+# Run beacon detection
+python3 beacon_detector.py > detection_report.txt
+
+# View results
+cat detection_report.txt
+Step 3.3: Create Automated Analysis Script
+Create analyze.sh:
+
+#!/bin/bash
+
+# Automated beacon detection workflow
+
+echo "Starting beacon detection analysis..."
+
+# Ensure Zeek is running
+sudo zeekctl status
+
+# Run detection
+python3 beacon_detector.py --output results.json
+
+# Generate visualizations
+python3 visualizer.py --input results.json --output-dir ./plots
+
+# Create summary report
+python3 -c "
+import json
+with open('results.json') as f:
+    data = json.load(f)
+    print(f'Total beacons detected: {data[\"summary\"][\"total_beacons\"]}')
+    print(f'High confidence: {data[\"summary\"][\"high_confidence_count\"]}')
+"
+
+echo "Analysis complete. Check ./plots directory for visualizations."
+Task 4: Implement Basic Alerting
+Step 4.1: Create Alert Generator
+Create alerting.py:
+
+#!/usr/bin/env python3
+import json
+import smtplib
+from email.mime.text import MIMEText
+from datetime import datetime
+
+class AlertManager:
+    """Generate and send alerts for detected beacons"""
+    
+    def __init__(self, alert_threshold: float = 0.8):
+        self.alert_threshold = alert_threshold
+    
+    def check_alert_conditions(self, beacon_data: dict) -> bool:
+        """
+        Determine if beacon warrants an alert.
+        
+        Args:
+            beacon_data: Dictionary with beacon information
+        
+        Returns:
+            True if alert should be generated
+        """
+        # TODO: Check if beacon_score >= alert_threshold
+        # TODO: Check if connection_count is significant
+        # TODO: Check if duration is concerning
+        # TODO: Return True if any condition met
+        pass
+    
+    def format_alert_message(self, beacon_data: dict) -> str:
+        """
+        Format alert message with beacon details.
+        
+        Args:
+            beacon_data: Beacon information dictionary
+        
+        Returns:
+            Formatted alert message string
+        """
+        # TODO: Create formatted message with:
+        #   - Alert timestamp
+        #   - Source and destination IPs
+        #   - Beacon score and statistics
+        #   - Recommended actions
+        pass
+    
+    def write_alert_log(self, alert_message: str, log_file: str = "alerts.log"):
+        """Write alert to log file"""
+        # TODO: Append alert_message to log_file with timestamp
+        pass
+    
+    def send_email_alert(self, alert_message: str, recipient: str):
+        """
+        Send email alert (requires SMTP configuration).
+        
+        Args:
+            alert_message: Alert message text
+            recipient: Email recipient address
+        """
+        # TODO: Configure SMTP settings
+        # TODO: Create email message
+        # TODO: Send email (handle exceptions)
+        pass
+    
+    def process_detection_results(self, results: dict):
+        """
+        Process detection results and generate alerts.
+        
+        Args:
+            results: Beacon detection results dictionary
+        """
+        # TODO: Iterate through detected beacons
+        # TODO: Check alert conditions for each
+        # TODO: Generate and send alerts as needed
+        # TODO: Log all alerts
+        pass
+Step 4.2: Integrate Alerting with Detection
+Update beacon_detector.py to include alerting:
+
+# Add to beacon_detector.py
+
+from alerting import AlertManager
+
+def main():
+    detector = BeaconDetector()
+    alert_mgr = AlertManager(alert_threshold=0.8)
+    
+    # Run detection
+    report = detector.generate_report()
+    
+    # Process alerts
+    alert_mgr.process_detection_results(report)
+    
+    # Display summary
+    print(f"Detected {report['summary']['total_beacons']} beacons")
+    print(f"Generated {report['summary']['alerts_sent']} alerts")
+
+if __name__ == "__main__":
+    main()
+Expected Outcomes
+After completing this lab, you should have:
+
+Functional Zeek installation monitoring network traffic
+Custom Zeek script detecting beacon patterns
+Python toolkit for automated beacon analysis
+Visualization capabilities for detection results
+Basic alerting system for high-confidence detections
+Understanding of beacon detection methodologies
+Troubleshooting Tips
+Zeek not capturing traffic:
+
+Verify network interface name in node.cfg
+Check interface is up: ip link show
+Ensure sufficient permissions: sudo zeekctl
+Review Zeek logs: tail /opt/zeek/logs/current/reporter.log
+No beacons detected:
+
+Verify sufficient traffic volume (run traffic generator longer)
+Lower detection thresholds (increase max_cv parameter)
+Check log parsing: python3 zeek_parser.py
+Ensure timestamps are correctly parsed
+Python import errors:
+
+Activate virtual environment: source venv/bin/activate
+Reinstall dependencies: pip install -r requirements.txt
+Check Python version: python3 --version (requires 3.7+)
+Conclusion
+This lab introduced network beacon detection using Zeek and Python. You learned to:
+
+Deploy Zeek for network monitoring
+Identify beaconing through statistical analysis
+Automate detection with Python scripts
+Generate alerts for suspicious patterns
+Beacon detection is crucial for identifying command-and-control communications in compromised networks. The techniques learned here form the foundation for advanced threat hunting and network security monitoring.
+
+Next Steps:
+
+Experiment with different detection thresholds
+Integrate with SIEM platforms (Splunk, ELK)
+Implement machine learning for improved detection
+Analyze real network traffic from your environment
