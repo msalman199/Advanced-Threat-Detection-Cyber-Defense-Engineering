@@ -1,0 +1,605 @@
+Live Threat Hunt with Security Onion + ELK
+Objectives
+By the end of this lab, students will be able to:
+
+Deploy and configure Security Onion components for network security monitoring
+Integrate ELK Stack for centralized log analysis and visualization
+Perform live threat hunting using Suricata IDS and custom detection rules
+Create automated threat detection scripts using Python and Elasticsearch API
+Generate security dashboards and reports for incident response
+Prerequisites
+Basic Linux command line proficiency
+Understanding of networking fundamentals (TCP/IP, ports, protocols)
+Familiarity with log analysis concepts
+Elementary Python programming skills
+Basic cybersecurity knowledge
+Lab Environment
+Al Nafi Cloud Machine Setup: This lab runs on a single Ubuntu 20.04 LTS cloud machine with 8GB RAM and 100GB storage. Click Start Lab to access your pre-configured environment. No additional VM setup required.
+
+Task 1: Deploy Security Onion Components with Docker
+Step 1: Install Docker and Docker Compose
+# Update system and install prerequisites
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl wget git vim net-tools
+
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Verify installation
+docker --version
+docker-compose --version
+Step 2: Create Security Onion directory structure
+# Create working directory
+sudo mkdir -p /opt/so/{conf,logs,rules}
+cd /opt/so
+
+# Set permissions
+sudo chown -R $USER:$USER /opt/so
+Step 3: Configure Docker Compose for Security Stack
+Create the main Docker Compose configuration:
+
+cat > /opt/so/docker-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
+    container_name: so-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - so-net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.0
+    container_name: so-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - so-net
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.17.0
+    container_name: so-logstash
+    ports:
+      - "5044:5044"
+    volumes:
+      - ./conf/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./logs:/var/log/security
+    depends_on:
+      - elasticsearch
+    networks:
+      - so-net
+
+  suricata:
+    image: jasonish/suricata:latest
+    container_name: so-suricata
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - SYS_NICE
+    volumes:
+      - ./conf/suricata.yaml:/etc/suricata/suricata.yaml
+      - ./rules/suricata.rules:/etc/suricata/rules/suricata.rules
+      - ./logs:/var/log/suricata
+    command: suricata -c /etc/suricata/suricata.yaml -i lo
+
+volumes:
+  es_data:
+
+networks:
+  so-net:
+    driver: bridge
+EOF
+Step 4: Configure Suricata IDS
+Create Suricata configuration file:
+
+cat > /opt/so/conf/suricata.yaml << 'EOF'
+vars:
+  address-groups:
+    HOME_NET: "[192.168.0.0/16,10.0.0.0/8,172.16.0.0/12]"
+    EXTERNAL_NET: "!$HOME_NET"
+
+default-log-dir: /var/log/suricata/
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - alert:
+            payload: yes
+            packet: yes
+        - http:
+            extended: yes
+        - dns:
+            query: yes
+            answer: yes
+        - tls:
+            extended: yes
+        - ssh
+        - flow
+
+rule-files:
+  - /etc/suricata/rules/suricata.rules
+
+af-packet:
+  - interface: lo
+    cluster-id: 99
+    cluster-type: cluster_flow
+
+detect-engine:
+  - profile: medium
+
+threading:
+  set-cpu-affinity: no
+EOF
+Step 5: Create custom Suricata detection rules
+cat > /opt/so/rules/suricata.rules << 'EOF'
+# SSH Brute Force Detection
+alert tcp any any -> $HOME_NET 22 (msg:"Potential SSH Brute Force"; flow:to_server,established; content:"SSH"; threshold:type both, track by_src, count 5, seconds 60; sid:1000001; rev:1;)
+
+# Web Attack Detection
+alert tcp any any -> $HOME_NET 80 (msg:"Directory Traversal Attempt"; flow:to_server,established; content:"../"; sid:1000002; rev:1;)
+
+# Port Scan Detection
+alert tcp any any -> $HOME_NET any (msg:"Potential Port Scan"; flags:S; threshold:type threshold, track by_src, count 10, seconds 60; sid:1000003; rev:1;)
+
+# SQL Injection Detection
+alert http any any -> $HOME_NET any (msg:"SQL Injection Attempt"; content:"UNION"; nocase; content:"SELECT"; nocase; distance:0; sid:1000004; rev:1;)
+
+# Suspicious User Agent
+alert http any any -> $HOME_NET any (msg:"Suspicious Scanner User Agent"; content:"User-Agent|3a| sqlmap"; sid:1000005; rev:1;)
+EOF
+Task 2: Configure ELK Stack for Security Log Analysis
+Step 1: Create Logstash pipeline configuration
+cat > /opt/so/conf/logstash.conf << 'EOF'
+input {
+  file {
+    path => "/var/log/security/eve.json"
+    start_position => "beginning"
+    codec => "json"
+    type => "suricata"
+  }
+  file {
+    path => "/var/log/auth.log"
+    start_position => "beginning"
+    type => "syslog"
+  }
+}
+
+filter {
+  if [type] == "suricata" {
+    if [event_type] == "alert" {
+      mutate {
+        add_tag => ["threat"]
+      }
+    }
+    date {
+      match => [ "timestamp", "ISO8601" ]
+    }
+  }
+  
+  if [type] == "syslog" {
+    grok {
+      match => { "message" => "%{SYSLOGTIMESTAMP:timestamp} %{SYSLOGHOST:host} %{DATA:program}(?:\[%{POSINT:pid}\])?: %{GREEDYDATA:message}" }
+      overwrite => [ "message" ]
+    }
+    if "Failed password" in [message] {
+      mutate {
+        add_tag => ["failed_login", "threat"]
+      }
+    }
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["elasticsearch:9200"]
+    index => "security-logs-%{+YYYY.MM.dd}"
+  }
+}
+EOF
+Step 2: Start the Security Stack
+cd /opt/so
+docker-compose up -d
+
+# Wait for services to initialize
+sleep 60
+
+# Verify all services are running
+docker-compose ps
+Step 3: Generate test security events
+# Create test event generator script
+cat > /tmp/generate_events.sh << 'EOF'
+#!/bin/bash
+
+# Generate failed SSH login attempts
+for i in {1..15}; do
+    logger -t sshd "Failed password for invalid user test$i from 192.168.1.100 port 22 ssh2"
+    sleep 1
+done
+
+# Generate web requests
+for i in {1..5}; do
+    curl -s "http://localhost/../etc/passwd" > /dev/null 2>&1
+    sleep 2
+done
+
+echo "Test security events generated"
+EOF
+
+chmod +x /tmp/generate_events.sh
+/tmp/generate_events.sh
+Step 4: Verify data ingestion in Elasticsearch
+# Wait for data to be indexed
+sleep 30
+
+# Check if indices are created
+curl -s "http://localhost:9200/_cat/indices?v" | grep security-logs
+
+# Query for threat events
+curl -s -X GET "http://localhost:9200/security-logs-*/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "query": {
+    "match": {
+      "tags": "threat"
+    }
+  },
+  "size": 5
+}'
+Step 5: Access Kibana and create index pattern
+# Wait for Kibana to be ready
+until curl -s http://localhost:5601/api/status | grep -q "available"; do
+    echo "Waiting for Kibana..."
+    sleep 5
+done
+
+# Create index pattern via API
+curl -X POST "localhost:5601/api/saved_objects/index-pattern/security-logs" \
+  -H "Content-Type: application/json" \
+  -H "kbn-xsrf: true" \
+  -d '{
+    "attributes": {
+      "title": "security-logs-*",
+      "timeFieldName": "@timestamp"
+    }
+  }'
+
+echo "Kibana is ready at http://localhost:5601"
+Task 3: Develop Automated Threat Detection Scripts
+Step 1: Install Python dependencies
+pip3 install elasticsearch requests pandas matplotlib
+Step 2: Create threat hunting script template
+Students must complete the implementation:
+
+#!/usr/bin/env python3
+"""
+Automated Threat Hunter for Security Onion
+Students: Complete the TODO sections to implement threat detection logic
+"""
+
+from elasticsearch import Elasticsearch
+from datetime import datetime, timedelta
+import json
+
+class ThreatHunter:
+    def __init__(self, es_host='localhost', es_port=9200):
+        """Initialize connection to Elasticsearch"""
+        # TODO: Create Elasticsearch connection
+        pass
+    
+    def search_threats(self, hours_back=24):
+        """
+        Search for threats in the last N hours
+        
+        Args:
+            hours_back: Number of hours to look back
+            
+        Returns:
+            List of threat events
+        """
+        # TODO: Calculate time range
+        # TODO: Build Elasticsearch query for threats with tags
+        # TODO: Execute search and return results
+        pass
+    
+    def detect_brute_force(self, threshold=5):
+        """
+        Detect potential brute force attacks
+        
+        Args:
+            threshold: Minimum failed attempts to trigger alert
+            
+        Returns:
+            List of suspicious source IPs
+        """
+        # TODO: Query for failed login attempts
+        # TODO: Aggregate by source IP
+        # TODO: Filter IPs exceeding threshold
+        # TODO: Return list of suspicious IPs with attempt counts
+        pass
+    
+    def detect_port_scans(self):
+        """
+        Detect potential port scanning activities
+        
+        Returns:
+            List of source IPs performing port scans
+        """
+        # TODO: Query for port scan alerts from Suricata
+        # TODO: Aggregate by source IP
+        # TODO: Return scan sources with counts
+        pass
+    
+    def analyze_dns_queries(self):
+        """
+        Analyze DNS queries for suspicious patterns
+        
+        Returns:
+            List of suspicious domains
+        """
+        # TODO: Query DNS events from last 24 hours
+        # TODO: Aggregate by domain name
+        # TODO: Check for suspicious patterns:
+        #       - Very long domain names (>50 chars)
+        #       - Too many subdomains (>5)
+        #       - High percentage of numeric characters
+        # TODO: Return list of suspicious domains with reasons
+        pass
+    
+    def generate_threat_report(self):
+        """Generate comprehensive threat report"""
+        print("=" * 60)
+        print("SECURITY THREAT HUNTING REPORT")
+        print("=" * 60)
+        print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print()
+        
+        # TODO: Call search_threats() and display count
+        # TODO: Call detect_brute_force() and display results
+        # TODO: Call detect_port_scans() and display results
+        # TODO: Call analyze_dns_queries() and display results
+        # TODO: Generate recommendations based on findings
+        pass
+
+def main():
+    hunter = ThreatHunter()
+    hunter.generate_threat_report()
+
+if __name__ == "__main__":
+    main()
+Save as /opt/so/threat_hunter.py and make executable:
+
+chmod +x /opt/so/threat_hunter.py
+Step 3: Create continuous monitoring script template
+#!/usr/bin/env python3
+"""
+Continuous Security Monitor
+Students: Implement real-time threat monitoring logic
+"""
+
+import time
+from datetime import datetime
+from elasticsearch import Elasticsearch
+
+class ContinuousMonitor:
+    def __init__(self, es_host='localhost', es_port=9200):
+        """Initialize monitor with Elasticsearch connection"""
+        # TODO: Create Elasticsearch connection
+        # TODO: Define alert thresholds
+        pass
+    
+    def check_real_time_threats(self):
+        """
+        Check for real-time threats in last 5 minutes
+        
+        Returns:
+            List of alerts
+        """
+        alerts = []
+        
+        # TODO: Query for failed logins in last 5 minutes
+        # TODO: Check if count exceeds threshold
+        # TODO: Create alert dictionary with type, count, severity, time
+        # TODO: Add similar checks for other threat types
+        
+        return alerts
+    
+    def log_alert(self, alert):
+        """
+        Log alert to file
+        
+        Args:
+            alert: Alert dictionary to log
+        """
+        # TODO: Write alert to /var/log/security_alerts.log in JSON format
+        pass
+    
+    def send_notification(self, alerts):
+        """
+        Send notification for critical alerts
+        
+        Args:
+            alerts: List of alert dictionaries
+        """
+        # TODO: Format alert message
+        # TODO: Print to console
+        # TODO: Log each alert using log_alert()
+        pass
+    
+    def run_monitor(self, interval=60):
+        """
+        Run continuous monitoring loop
+        
+        Args:
+            interval: Check interval in seconds
+        """
+        print(f"Starting continuous monitoring (interval: {interval}s)...")
+        
+        # TODO: Implement infinite loop
+        # TODO: Call check_real_time_threats()
+        # TODO: If alerts found, call send_notification()
+        # TODO: Sleep for interval
+        # TODO: Handle KeyboardInterrupt for graceful shutdown
+        pass
+
+def main():
+    monitor = ContinuousMonitor()
+    monitor.run_monitor(interval=30)
+
+if __name__ == "__main__":
+    main()
+Save as /opt/so/continuous_monitor.py and make executable.
+
+Step 4: Create visualization script template
+#!/usr/bin/env python3
+"""
+Security Dashboard Generator
+Students: Implement data visualization and reporting
+"""
+
+import matplotlib.pyplot as plt
+import pandas as pd
+from datetime import datetime
+from elasticsearch import Elasticsearch
+
+class SecurityDashboard:
+    def __init__(self, es_host='localhost', es_port=9200):
+        """Initialize dashboard with Elasticsearch connection"""
+        # TODO: Create Elasticsearch connection
+        pass
+    
+    def get_threat_timeline(self, hours=24):
+        """
+        Get threat timeline data
+        
+        Args:
+            hours: Number of hours to analyze
+            
+        Returns:
+            List of time buckets with threat counts
+        """
+        # TODO: Build query with date histogram aggregation
+        # TODO: Query threats over time (1-hour intervals)
+        # TODO: Return aggregation buckets
+        pass
+    
+    def get_top_threat_sources(self, limit=10):
+        """
+        Get top threat source IPs
+        
+        Args:
+            limit: Number of top sources to return
+            
+        Returns:
+            List of source IPs with counts
+        """
+        # TODO: Build query with terms aggregation on source_ip
+        # TODO: Execute query
+        # TODO: Return top sources
+        pass
+    
+    def create_threat_timeline_chart(self):
+        """Create and save threat timeline visualization"""
+        # TODO: Get timeline data
+        # TODO: Extract times and counts into lists
+        # TODO: Create line plot with matplotlib
+        # TODO: Add title, labels, grid
+        # TODO: Save to /tmp/threat_timeline.png
+        pass
+    
+    def create_threat_sources_chart(self):
+        """Create and save top threat sources visualization"""
+        # TODO: Get top sources data
+        # TODO: Extract IPs and counts
+        # TODO: Create horizontal bar chart
+        # TODO: Add labels and title
+        # TODO: Save to /tmp/threat_sources.png
+        pass
+    
+    def generate_executive_summary(self):
+        """Generate executive summary report"""
+        print("=" * 70)
+        print("EXECUTIVE SECURITY SUMMARY")
+        print("=" * 70)
+        print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print()
+        
+        # TODO: Query total events in last 24 hours
+        # TODO: Query threat events in last 24 hours
+        # TODO: Calculate threat percentage
+        # TODO: Determine risk level (HIGH/MEDIUM/LOW)
+        # TODO: Display statistics
+        # TODO: Generate recommendations based on threat count
+        pass
+
+def main():
+    dashboard = SecurityDashboard()
+    dashboard.generate_executive_summary()
+    dashboard.create_threat_timeline_chart()
+    dashboard.create_threat_sources_chart()
+
+if __name__ == "__main__":
+    main()
+Save as /opt/so/security_dashboard.py and make executable.
+
+Expected Outcomes
+After completing this lab, students should have:
+
+A fully functional Security Onion environment with ELK Stack
+Working Suricata IDS with custom detection rules
+Automated threat detection scripts that:
+Identify brute force attacks
+Detect port scanning activities
+Analyze DNS queries for anomalies
+Generate comprehensive security reports
+Visualization dashboards showing threat timelines and sources
+Understanding of continuous security monitoring workflows
+Troubleshooting Tips
+Issue: Docker containers fail to start
+
+Check available memory: free -h (need at least 4GB free)
+Verify Docker service: sudo systemctl status docker
+Check logs: docker-compose logs [service_name]
+Issue: Elasticsearch connection refused
+
+Wait 60-90 seconds for Elasticsearch to fully initialize
+Verify service is running: curl http://localhost:9200
+Check container logs: docker logs so-elasticsearch
+Issue: No data appearing in Kibana
+
+Verify Logstash is processing logs: docker logs so-logstash
+Check if indices exist: curl http://localhost:9200/_cat/indices
+Ensure test events were generated: cat /var/log/auth.log | grep Failed
+Issue: Python scripts fail with import errors
+
+Install missing packages: pip3 install elasticsearch requests pandas matplotlib
+Verify Python version: python3 --version (need 3.6+)
+Conclusion
+This lab provided hands-on experience with enterprise-grade security monitoring using Security Onion and ELK Stack. Students learned to deploy containerized security tools, configure intrusion detection systems, process security logs at scale, and develop automated threat hunting capabilities. These skills are essential for SOC analysts, security engineers, and incident responders in modern cybersecurity operations.
+
+Key takeaways:
+
+Security monitoring requires multiple integrated tools working together
+Automated detection reduces response time to threats
+Visualization helps identify patterns and trends in security data
+Continuous monitoring is essential for maintaining security posture
+Students should continue practicing by creating additional detection rules, expanding their Python scripts, and experimenting with different visualization techniques to enhance their threat hunting capabilities.
