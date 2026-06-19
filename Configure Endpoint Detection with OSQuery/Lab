@@ -1,0 +1,584 @@
+Configure Endpoint Detection with OSQuery
+Objectives
+By the end of this lab, students will be able to:
+
+Install and configure OSQuery for endpoint monitoring on Linux systems
+Write custom SQL queries to extract security-relevant endpoint data
+Develop Python scripts to automate OSQuery data collection and analysis
+Implement threat detection logic using OSQuery telemetry
+Integrate OSQuery with centralized logging systems for security monitoring
+Prerequisites
+Basic Linux command line proficiency
+Understanding of SQL query syntax
+Python programming fundamentals
+Familiarity with JSON data structures
+Basic security monitoring concepts
+Lab Environment
+This lab uses a single Ubuntu 20.04 LTS cloud machine with:
+
+Python 3.8+
+Root/sudo access
+Internet connectivity for package installation
+Pre-configured development tools
+Click Start Lab to access your dedicated environment.
+
+Task 1: Install and Configure OSQuery
+Step 1.1: Install OSQuery Package
+# Update system and install dependencies
+sudo apt update && sudo apt install -y curl gnupg2
+
+# Add OSQuery repository
+curl -L https://pkg.osquery.io/deb/pubkey.gpg | sudo apt-key add -
+sudo add-apt-repository 'deb [arch=amd64] https://pkg.osquery.io/deb deb main'
+
+# Install OSQuery
+sudo apt update && sudo apt install -y osquery
+
+# Verify installation
+osqueryi --version
+Step 1.2: Create Basic Configuration
+# Create configuration directory
+sudo mkdir -p /etc/osquery
+
+# Create main configuration file
+sudo nano /etc/osquery/osquery.conf
+Add the following configuration:
+
+{
+  "options": {
+    "config_plugin": "filesystem",
+    "logger_plugin": "filesystem",
+    "logger_path": "/var/log/osquery",
+    "disable_logging": "false",
+    "log_result_events": "true",
+    "schedule_splay_percent": "10",
+    "database_path": "/var/osquery/osquery.db"
+  },
+  "schedule": {
+    "system_info": {
+      "query": "SELECT hostname, cpu_brand, physical_memory FROM system_info;",
+      "interval": 3600
+    },
+    "network_connections": {
+      "query": "SELECT pid, local_address, local_port, remote_address, remote_port FROM process_open_sockets;",
+      "interval": 300
+    },
+    "running_processes": {
+      "query": "SELECT name, path, pid, cmdline FROM processes;",
+      "interval": 600
+    }
+  }
+}
+Step 1.3: Configure File Integrity Monitoring
+# Create FIM configuration
+sudo nano /etc/osquery/fim.conf
+Add monitoring paths:
+
+{
+  "file_paths": {
+    "binaries": ["/usr/bin/%%", "/usr/sbin/%%"],
+    "configuration": ["/etc/%%"],
+    "ssh_keys": ["/home/%%/.ssh/%%"]
+  }
+}
+Step 1.4: Start OSQuery Service
+# Create required directories
+sudo mkdir -p /var/log/osquery /var/osquery
+sudo chown osquery:osquery /var/log/osquery /var/osquery
+
+# Start and enable service
+sudo systemctl start osqueryd
+sudo systemctl enable osqueryd
+sudo systemctl status osqueryd
+
+# Verify logging
+sudo tail -f /var/log/osquery/osqueryd.results.log
+Step 1.5: Test Interactive Queries
+# Launch interactive shell
+sudo osqueryi
+
+# Test queries (run inside osqueryi):
+# SELECT * FROM system_info;
+# SELECT * FROM users;
+# SELECT * FROM listening_ports;
+# SELECT name, path FROM processes WHERE name LIKE '%ssh%';
+# .quit
+Task 2: Develop Python Data Collection Scripts
+Step 2.1: Setup Python Environment
+# Create project directory
+mkdir -p ~/osquery-lab && cd ~/osquery-lab
+
+# Install Python dependencies
+pip3 install --user psutil requests
+Step 2.2: Create OSQuery Interface Module
+Create osquery_interface.py:
+
+#!/usr/bin/env python3
+"""
+OSQuery Python Interface Module
+Students: Complete the TODO sections to implement functionality
+"""
+
+import subprocess
+import json
+import logging
+from datetime import datetime
+
+class OSQueryInterface:
+    def __init__(self):
+        """Initialize OSQuery interface with logging"""
+        self.setup_logging()
+        self.logger.info("OSQuery interface initialized")
+    
+    def setup_logging(self):
+        """Configure logging to file and console"""
+        # TODO: Setup logging configuration
+        # - Create logger with appropriate format
+        # - Add file handler to /tmp/osquery_collector.log
+        # - Add console handler
+        pass
+    
+    def execute_query(self, query: str) -> list:
+        """
+        Execute OSQuery and return JSON results
+        
+        Args:
+            query: SQL query string
+            
+        Returns:
+            List of dictionaries containing query results
+        """
+        # TODO: Implement query execution
+        # - Use subprocess to run: osqueryi --json "query"
+        # - Parse JSON output
+        # - Handle errors appropriately
+        # - Return results as list
+        pass
+    
+    def get_system_info(self) -> list:
+        """Collect basic system information"""
+        query = """
+        SELECT hostname, uuid, cpu_brand, physical_memory 
+        FROM system_info;
+        """
+        # TODO: Execute query and return results
+        pass
+    
+    def get_running_processes(self) -> list:
+        """Get all running processes with details"""
+        # TODO: Write query to select pid, name, path, cmdline, uid
+        # TODO: Execute and return results
+        pass
+    
+    def get_network_connections(self) -> list:
+        """Get active network connections"""
+        # TODO: Write query joining process_open_sockets and processes
+        # TODO: Include local/remote addresses and ports
+        # TODO: Execute and return results
+        pass
+    
+    def get_logged_in_users(self) -> list:
+        """Get currently logged in users"""
+        # TODO: Query logged_in_users table
+        # TODO: Filter for type='user'
+        # TODO: Return results
+        pass
+    
+    def collect_all_data(self) -> dict:
+        """
+        Collect comprehensive endpoint data
+        
+        Returns:
+            Dictionary containing all collected data with timestamp
+        """
+        # TODO: Call all collection methods
+        # TODO: Combine results into single dictionary
+        # TODO: Add timestamp
+        # TODO: Return complete dataset
+        pass
+    
+    def save_to_file(self, data: dict, filename: str = None):
+        """
+        Save collected data to JSON file
+        
+        Args:
+            data: Dictionary to save
+            filename: Output filename (auto-generated if None)
+        """
+        # TODO: Generate filename with timestamp if not provided
+        # TODO: Write data to JSON file with proper formatting
+        # TODO: Log success/failure
+        pass
+
+# Test code
+if __name__ == "__main__":
+    osq = OSQueryInterface()
+    data = osq.collect_all_data()
+    osq.save_to_file(data)
+    print("Data collection completed")
+Step 2.3: Create Threat Detection Module
+Create threat_detector.py:
+
+#!/usr/bin/env python3
+"""
+Threat Detection Module using OSQuery Data
+Students: Implement detection logic for various threat types
+"""
+
+import re
+from datetime import datetime
+from osquery_interface import OSQueryInterface
+
+class ThreatDetector:
+    def __init__(self):
+        self.osq = OSQueryInterface()
+        self.threat_patterns = {
+            'suspicious_commands': [
+                r'.*nc\s+-l.*',      # Netcat listeners
+                r'.*bash\s+-i.*',    # Interactive shells
+                r'.*/dev/tcp/.*',    # Bash TCP connections
+                r'.*wget.*\|.*sh.*'  # Download and execute
+            ],
+            'suspicious_ports': ['4444', '1234', '31337', '8080']
+        }
+    
+    def detect_suspicious_processes(self) -> list:
+        """
+        Detect processes with suspicious command lines
+        
+        Returns:
+            List of threat dictionaries
+        """
+        # TODO: Get running processes
+        # TODO: Check each process cmdline against patterns
+        # TODO: Create threat entry for matches with:
+        #       - type, severity, process info, reason, timestamp
+        # TODO: Return list of threats
+        pass
+    
+    def detect_suspicious_network(self) -> list:
+        """
+        Detect suspicious network connections
+        
+        Returns:
+            List of network-based threats
+        """
+        # TODO: Get network connections
+        # TODO: Check for suspicious ports
+        # TODO: Check for unusual external connections
+        # TODO: Create threat entries
+        # TODO: Return threats list
+        pass
+    
+    def detect_privilege_escalation(self) -> list:
+        """
+        Detect potential privilege escalation
+        
+        Returns:
+            List of privilege escalation threats
+        """
+        # TODO: Find processes running as root (uid=0)
+        # TODO: Check if parent process is non-root
+        # TODO: Flag as potential privilege escalation
+        # TODO: Return threats
+        pass
+    
+    def is_private_ip(self, ip: str) -> bool:
+        """Check if IP is in private range"""
+        # TODO: Check against private IP patterns
+        # TODO: Return True/False
+        pass
+    
+    def run_full_scan(self) -> list:
+        """
+        Execute all threat detection methods
+        
+        Returns:
+            Combined list of all detected threats
+        """
+        # TODO: Run all detection methods
+        # TODO: Combine results
+        # TODO: Return complete threat list
+        pass
+    
+    def generate_report(self, threats: list) -> dict:
+        """
+        Generate formatted threat report
+        
+        Args:
+            threats: List of threat dictionaries
+            
+        Returns:
+            Report dictionary with summary and details
+        """
+        # TODO: Create report structure with:
+        #       - timestamp, total_threats, threat_summary, threats
+        # TODO: Categorize by type and severity
+        # TODO: Return report dictionary
+        pass
+    
+    def save_report(self, report: dict, filename: str = None):
+        """Save threat report to file"""
+        # TODO: Generate filename if not provided
+        # TODO: Save report as JSON
+        # TODO: Log result
+        pass
+
+# Test code
+if __name__ == "__main__":
+    detector = ThreatDetector()
+    threats = detector.run_full_scan()
+    report = detector.generate_report(threats)
+    detector.save_report(report)
+    print(f"Detected {len(threats)} potential threats")
+Step 2.4: Create Continuous Monitoring Script
+Create continuous_monitor.py:
+
+#!/usr/bin/env python3
+"""
+Continuous Endpoint Monitoring Script
+Students: Implement continuous collection and alerting
+"""
+
+import time
+import signal
+from datetime import datetime
+from threading import Thread, Event
+from osquery_interface import OSQueryInterface
+from threat_detector import ThreatDetector
+
+class ContinuousMonitor:
+    def __init__(self, collection_interval=300, scan_interval=600):
+        """
+        Initialize continuous monitor
+        
+        Args:
+            collection_interval: Seconds between data collections
+            scan_interval: Seconds between threat scans
+        """
+        # TODO: Initialize intervals
+        # TODO: Create Event for shutdown signaling
+        # TODO: Initialize OSQuery and ThreatDetector
+        # TODO: Setup signal handlers
+        pass
+    
+    def signal_handler(self, signum, frame):
+        """Handle shutdown signals gracefully"""
+        # TODO: Log shutdown message
+        # TODO: Clear running event
+        pass
+    
+    def collect_data_worker(self):
+        """Worker thread for periodic data collection"""
+        # TODO: Loop while running
+        # TODO: Collect data using OSQueryInterface
+        # TODO: Save to timestamped file
+        # TODO: Sleep for collection_interval
+        # TODO: Handle exceptions
+        pass
+    
+    def threat_scan_worker(self):
+        """Worker thread for periodic threat scanning"""
+        # TODO: Loop while running
+        # TODO: Run threat detection scan
+        # TODO: Generate and save report
+        # TODO: Alert on high severity threats
+        # TODO: Sleep for scan_interval
+        # TODO: Handle exceptions
+        pass
+    
+    def start_monitoring(self):
+        """Start continuous monitoring with worker threads"""
+        # TODO: Print startup message
+        # TODO: Create and start data collection thread
+        # TODO: Create and start threat scan thread
+        # TODO: Keep main thread alive
+        # TODO: Handle shutdown gracefully
+        pass
+
+# Main execution
+if __name__ == "__main__":
+    monitor = ContinuousMonitor()
+    monitor.start_monitoring()
+Task 3: Integrate with Centralized Logging
+Step 3.1: Configure Log Forwarding
+Create a log forwarding configuration:
+
+# Create forwarding script
+nano ~/osquery-lab/log_forwarder.py
+#!/usr/bin/env python3
+"""
+Log Forwarding Module
+Students: Implement log forwarding to remote syslog/SIEM
+"""
+
+import socket
+import json
+from datetime import datetime
+
+class LogForwarder:
+    def __init__(self, syslog_host='localhost', syslog_port=514):
+        """Initialize syslog forwarder"""
+        # TODO: Store host and port
+        # TODO: Create UDP socket
+        pass
+    
+    def forward_log(self, log_data: dict):
+        """
+        Forward log entry to syslog server
+        
+        Args:
+            log_data: Dictionary containing log information
+        """
+        # TODO: Format log as JSON string
+        # TODO: Create syslog message with priority
+        # TODO: Send via UDP socket
+        # TODO: Handle errors
+        pass
+    
+    def forward_threat_alert(self, threat: dict):
+        """Forward high-priority threat alert"""
+        # TODO: Add alert metadata
+        # TODO: Set high priority
+        # TODO: Forward using forward_log()
+        pass
+
+# Test code
+if __name__ == "__main__":
+    forwarder = LogForwarder()
+    test_log = {'message': 'Test log entry', 'timestamp': datetime.now().isoformat()}
+    forwarder.forward_log(test_log)
+Step 3.2: Create Integration Script
+Create siem_integration.py:
+
+#!/usr/bin/env python3
+"""
+SIEM Integration Module
+Students: Implement integration with centralized monitoring
+"""
+
+import json
+from osquery_interface import OSQueryInterface
+from threat_detector import ThreatDetector
+from log_forwarder import LogForwarder
+
+class SIEMIntegration:
+    def __init__(self, syslog_host='localhost'):
+        """Initialize SIEM integration components"""
+        # TODO: Initialize OSQuery, ThreatDetector, LogForwarder
+        pass
+    
+    def collect_and_forward(self):
+        """Collect data and forward to SIEM"""
+        # TODO: Collect endpoint data
+        # TODO: Run threat detection
+        # TODO: Forward data to SIEM
+        # TODO: Forward any threats as alerts
+        pass
+    
+    def format_for_siem(self, data: dict) -> dict:
+        """
+        Format data for SIEM ingestion
+        
+        Args:
+            data: Raw data dictionary
+            
+        Returns:
+            SIEM-formatted dictionary
+        """
+        # TODO: Add standard fields (timestamp, hostname, source)
+        # TODO: Normalize field names
+        # TODO: Return formatted data
+        pass
+
+# Test code
+if __name__ == "__main__":
+    integration = SIEMIntegration()
+    integration.collect_and_forward()
+Task 4: Test and Validate Detection
+Step 4.1: Generate Test Events
+Create test scenarios to validate detection:
+
+# Test suspicious process detection
+bash -c 'sleep 30' &
+
+# Test network connection monitoring
+nc -l 4444 &
+sleep 5
+killall nc
+
+# Test file monitoring
+touch /tmp/test_file.sh
+echo "#!/bin/bash" > /tmp/test_file.sh
+rm /tmp/test_file.sh
+Step 4.2: Run Detection Scripts
+# Run single threat scan
+cd ~/osquery-lab
+python3 threat_detector.py
+
+# Review results
+cat /tmp/threat_report_*.json | jq '.'
+
+# Run continuous monitoring (Ctrl+C to stop)
+python3 continuous_monitor.py
+Step 4.3: Validate Data Collection
+# Check OSQuery logs
+sudo tail -50 /var/log/osquery/osqueryd.results.log | jq '.'
+
+# Check collected data files
+ls -lh /tmp/osquery_data_*.json
+cat /tmp/osquery_data_*.json | jq '.system_info'
+
+# Verify threat reports
+ls -lh /tmp/threat_report_*.json
+cat /tmp/threat_report_*.json | jq '.threat_summary'
+Expected Outcomes
+Upon completion, students should have:
+
+Functional OSQuery installation with scheduled queries
+Python scripts for automated data collection
+Working threat detection logic
+Integration with centralized logging
+Understanding of endpoint detection and response concepts
+Validation Checklist:
+
+OSQuery service running and logging data
+Python scripts execute without errors
+Threat detection identifies test scenarios
+Data saved in proper JSON format
+Log forwarding functional (if configured)
+Troubleshooting Tips
+OSQuery service fails to start:
+
+Check configuration syntax: sudo osqueryd --config_check
+Verify permissions on log/database directories
+Review logs: sudo journalctl -u osqueryd -n 50
+Python scripts return empty results:
+
+Ensure OSQuery is running: sudo systemctl status osqueryd
+Verify query syntax in interactive mode: sudo osqueryi
+Check file permissions for reading logs
+Validate JSON parsing with sample data
+No threats detected during testing:
+
+Verify test processes are actually running: ps aux | grep nc
+Check threat pattern regex syntax
+Ensure sufficient time for OSQuery to log events
+Review detection logic and thresholds
+Conclusion
+This lab provided hands-on experience with OSQuery for endpoint detection and response. Students learned to install and configure OSQuery, develop Python automation scripts, implement threat detection logic, and integrate with centralized monitoring systems. These skills are essential for modern security operations and incident response.
+
+Key Takeaways:
+
+OSQuery provides SQL-based endpoint visibility
+Automation enables continuous security monitoring
+Pattern matching detects suspicious activities
+Integration with SIEM centralizes security data
+Endpoint telemetry is critical for threat hunting
+Next Steps:
+
+Expand detection rules for additional threat types
+Implement machine learning for anomaly detection
+Create custom OSQuery packs for specific use cases
+Integrate with incident response workflows
+Deploy across multiple endpoints for fleet management
