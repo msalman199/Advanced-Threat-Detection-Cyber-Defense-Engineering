@@ -1,0 +1,372 @@
+Snort Signature Creation and Live Alert Testing
+Objectives
+By the end of this lab, students will be able to:
+
+Understand Snort rule syntax and structure
+Create custom Snort signatures for detecting network threats
+Configure Snort for real-time intrusion detection
+Test signatures using automated packet generation with Scapy
+Analyze Snort alert logs and validate detection effectiveness
+Prerequisites
+Basic understanding of TCP/IP and network protocols
+Familiarity with Linux command line
+Knowledge of common web attacks (SQL injection, XSS)
+Basic Python programming skills
+Understanding of regular expressions
+Lab Environment Setup
+Al Nafi Cloud Machine: Click Start Lab to access your pre-configured Ubuntu 22.04 environment with:
+
+Snort 3.x installed
+Python 3.x with Scapy library
+Root access for configuration
+Task 1: Create Custom Snort Signatures
+Step 1: Set Up Custom Rules Directory
+# Create custom rules directory
+sudo mkdir -p /etc/snort/rules/custom
+sudo chmod 755 /etc/snort/rules/custom
+
+# Create custom rules file
+sudo nano /etc/snort/rules/custom/lab9_custom.rules
+Step 2: Understand Snort Rule Structure
+Add the following to your rules file to understand the syntax:
+
+# Snort Rule Structure:
+# action protocol src_ip src_port direction dst_ip dst_port (rule options)
+#
+# Actions: alert, log, pass, drop, reject
+# Protocols: tcp, udp, icmp, ip
+# Directions: -> (unidirectional), <> (bidirectional)
+
+# Example rule
+alert tcp any any -> any 80 (msg:"HTTP Traffic Detected"; sid:1000001; rev:1;)
+Step 3: Create Web Attack Signatures
+Add these signatures to detect common web attacks:
+
+# SQL Injection Detection
+alert tcp any any -> any 80 (msg:"SQL Injection - UNION SELECT"; content:"union select"; nocase; sid:1000002; rev:1; classtype:web-application-attack;)
+
+alert tcp any any -> any 80 (msg:"SQL Injection - OR 1=1"; content:"or 1=1"; nocase; sid:1000003; rev:1; classtype:web-application-attack;)
+
+# Cross-Site Scripting (XSS)
+alert tcp any any -> any 80 (msg:"XSS - Script Tag"; content:"<script"; nocase; sid:1000004; rev:1; classtype:web-application-attack;)
+
+alert tcp any any -> any 80 (msg:"XSS - JavaScript Alert"; content:"javascript:alert"; nocase; sid:1000005; rev:1; classtype:web-application-attack;)
+
+# Command Injection
+alert tcp any any -> any any (msg:"Command Injection - Cat"; content:"|3B|cat"; sid:1000006; rev:1; classtype:web-application-attack;)
+
+alert tcp any any -> any any (msg:"Command Injection - Wget"; content:"wget"; nocase; sid:1000007; rev:1; classtype:trojan-activity;)
+Step 4: Create Network Reconnaissance Signatures
+# Port Scanning Detection
+alert tcp any any -> any any (msg:"Possible Port Scan"; flags:S; threshold:type both, track by_src, count 10, seconds 60; sid:1000008; rev:1; classtype:attempted-recon;)
+
+# Nmap Detection
+alert tcp any any -> any any (msg:"Nmap TCP Scan"; flags:S; window:1024; sid:1000009; rev:1; classtype:attempted-recon;)
+
+# Suspicious DNS
+alert udp any any -> any 53 (msg:"Large DNS Query"; dsize:>100; sid:1000010; rev:1; classtype:policy-violation;)
+Step 5: Create Advanced Detection Rules
+# Suspicious User-Agent
+alert tcp any any -> any 80 (msg:"Suspicious User-Agent - Wget"; content:"User-Agent|3A| Wget"; nocase; sid:1000011; rev:1; classtype:policy-violation;)
+
+# Large Data Transfer
+alert tcp any any -> any any (msg:"Large Data Transfer"; dsize:>10000; threshold:type both, track by_src, count 5, seconds 60; sid:1000012; rev:1; classtype:policy-violation;)
+
+# PCRE for Credit Card Detection
+alert tcp any any -> any 80 (msg:"Credit Card Pattern"; pcre:"/\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}/"; sid:1000013; rev:1; classtype:policy-violation;)
+Save and exit (Ctrl+X, Y, Enter).
+
+Step 6: Configure Snort to Use Custom Rules
+# Edit main Snort configuration
+sudo nano /etc/snort/snort.conf
+
+# Add at the end of the file:
+include /etc/snort/rules/custom/lab9_custom.rules
+Task 2: Test Signatures with Automated Packet Generation
+Step 1: Create Scapy Packet Generator Template
+Create a file ~/packet_generator.py:
+
+#!/usr/bin/env python3
+
+from scapy.all import *
+import time
+import random
+
+class SnortTestGenerator:
+    def __init__(self, target_ip="127.0.0.1", interface="lo"):
+        self.target_ip = target_ip
+        self.interface = interface
+        self.src_ip = "192.168.1.100"
+    
+    def generate_sql_injection(self):
+        """
+        Generate SQL injection packets to test Snort rules.
+        
+        TODO: Create packets with SQL injection payloads
+        TODO: Use different SQL injection techniques
+        TODO: Send packets and add delays between sends
+        """
+        print("Generating SQL injection packets...")
+        
+        # TODO: Define SQL injection payloads list
+        payloads = [
+            # Add SQL injection strings here
+        ]
+        
+        # TODO: Loop through payloads and create packets
+        # Hint: Use IP()/TCP()/Raw() layers
+        # Hint: Use send() function with iface parameter
+        
+        pass
+    
+    def generate_xss_attacks(self):
+        """
+        Generate XSS attack packets.
+        
+        TODO: Create packets with XSS payloads
+        TODO: Include various XSS techniques
+        """
+        print("Generating XSS packets...")
+        
+        # TODO: Implement XSS packet generation
+        
+        pass
+    
+    def generate_port_scan(self):
+        """
+        Generate port scanning packets.
+        
+        TODO: Create SYN packets to multiple ports
+        TODO: Simulate rapid port scanning behavior
+        """
+        print("Generating port scan...")
+        
+        target_ports = [21, 22, 23, 25, 53, 80, 110, 143, 443]
+        
+        # TODO: Loop through ports and send SYN packets
+        # Hint: Use flags="S" for SYN packets
+        
+        pass
+    
+    def generate_suspicious_dns(self):
+        """
+        Generate suspicious DNS queries.
+        
+        TODO: Create DNS packets with suspicious domains
+        TODO: Include long domain names to trigger size rules
+        """
+        print("Generating DNS queries...")
+        
+        # TODO: Implement DNS query generation
+        # Hint: Use DNS() and DNSQR() layers
+        
+        pass
+    
+    def run_all_tests(self):
+        """Execute all test scenarios"""
+        print("Starting Snort signature tests...")
+        
+        # TODO: Call all test methods with delays between them
+        
+        pass
+
+def main():
+    # TODO: Create generator instance
+    # TODO: Run all tests
+    # TODO: Add error handling
+    
+    pass
+
+if __name__ == "__main__":
+    main()
+Step 2: Create Alert Analysis Script Template
+Create a file ~/analyze_alerts.py:
+
+#!/usr/bin/env python3
+
+import re
+from collections import defaultdict
+
+def parse_snort_alerts(alert_file):
+    """
+    Parse Snort alert file and extract information.
+    
+    Args:
+        alert_file: Path to Snort alert file
+    
+    Returns:
+        List of alert dictionaries
+    
+    TODO: Read alert file
+    TODO: Parse timestamp, message, SID, IPs
+    TODO: Return structured alert data
+    """
+    alerts = []
+    
+    # TODO: Implement alert parsing logic
+    # Hint: Use regex to extract fields
+    # Hint: Split by timestamp pattern
+    
+    return alerts
+
+def analyze_alerts(alerts):
+    """
+    Analyze parsed alerts and generate statistics.
+    
+    Args:
+        alerts: List of alert dictionaries
+    
+    TODO: Count alerts by type
+    TODO: Identify top source IPs
+    TODO: Filter custom rule detections (SID >= 1000000)
+    TODO: Print formatted statistics
+    """
+    
+    # TODO: Implement analysis logic
+    
+    pass
+
+def main():
+    alert_file = "/var/log/snort/alert"
+    
+    # TODO: Parse alerts
+    # TODO: Analyze and display results
+    
+    pass
+
+if __name__ == "__main__":
+    main()
+Step 3: Run Snort and Generate Test Traffic
+# Terminal 1: Start Snort
+sudo snort -A console -q -c /etc/snort/snort.conf -i lo -l /var/log/snort
+
+# Terminal 2: Generate test traffic (after completing the script)
+sudo python3 ~/packet_generator.py
+
+# Terminal 3: Monitor alerts in real-time
+sudo tail -f /var/log/snort/alert
+Step 4: Analyze Results
+# Run analysis script (after completing it)
+python3 ~/analyze_alerts.py
+
+# View raw alerts
+sudo cat /var/log/snort/alert | less
+Task 3: Validate and Optimize Signatures
+Step 1: Test Individual Signatures
+Create a simple test script ~/test_single_rule.sh:
+
+#!/bin/bash
+
+# Test specific signature by generating targeted traffic
+# Usage: ./test_single_rule.sh <test_type>
+
+TEST_TYPE=$1
+
+case $TEST_TYPE in
+    sql)
+        curl "http://127.0.0.1:8080/search?id=' OR 1=1--"
+        ;;
+    xss)
+        curl "http://127.0.0.1:8080/comment?msg=<script>alert('XSS')</script>"
+        ;;
+    scan)
+        nmap -sS 127.0.0.1 -p 1-100
+        ;;
+    *)
+        echo "Usage: $0 {sql|xss|scan}"
+        ;;
+esac
+Step 2: Measure Detection Rates
+Create ~/measure_detection.py:
+
+#!/usr/bin/env python3
+
+def count_alerts_by_sid(alert_file, sid):
+    """
+    Count how many times a specific SID was triggered.
+    
+    Args:
+        alert_file: Path to alert file
+        sid: Signature ID to count
+    
+    Returns:
+        Number of detections
+    
+    TODO: Parse alert file
+    TODO: Count occurrences of specific SID
+    TODO: Return count
+    """
+    
+    # TODO: Implement counting logic
+    
+    pass
+
+def calculate_detection_rate(expected, detected):
+    """
+    Calculate detection rate percentage.
+    
+    TODO: Implement calculation
+    TODO: Handle edge cases (division by zero)
+    """
+    
+    # TODO: Implement rate calculation
+    
+    pass
+
+# TODO: Test each signature and calculate rates
+Step 3: Optimize Rule Performance
+Review and optimize your rules:
+
+# Check for overlapping rules
+sudo snort -c /etc/snort/snort.conf --rule-to-text | grep "sid:1000"
+
+# Test rule syntax
+sudo snort -T -c /etc/snort/snort.conf
+
+# Benchmark performance
+sudo snort -c /etc/snort/snort.conf --pcap-dir /path/to/pcaps --pcap-show
+Expected Outcomes
+After completing this lab, you should have:
+
+Custom Snort rules file with 10+ signatures detecting various attacks
+Packet generation script that triggers your custom signatures
+Alert analysis tool that parses and summarizes Snort detections
+Test results showing which signatures detected which attacks
+Understanding of how to create, test, and validate IDS signatures
+Troubleshooting Tips
+Issue: Snort won't start
+
+Check configuration syntax: sudo snort -T -c /etc/snort/snort.conf
+Verify file permissions on rules directory
+Ensure no duplicate SIDs in rules
+Issue: No alerts generated
+
+Verify Snort is monitoring correct interface
+Check that custom rules are included in snort.conf
+Ensure test traffic matches rule criteria (ports, protocols)
+Use tcpdump to verify packets are being sent
+Issue: Scapy permission errors
+
+Run packet generation scripts with sudo
+Verify network interface name is correct
+Check firewall rules aren't blocking traffic
+Issue: Alert file empty or not updating
+
+Verify log directory exists and is writable
+Check Snort is running with correct output options
+Ensure sufficient disk space for logs
+Conclusion
+This lab provided hands-on experience with Snort signature development and testing. You learned to:
+
+Write custom Snort rules using various detection methods
+Automate signature testing with Scapy packet generation
+Analyze detection results and validate signature effectiveness
+Optimize rules for better performance and accuracy
+These skills are essential for security analysts working with intrusion detection systems. Continue practicing by creating signatures for new attack patterns and testing against real-world traffic captures.
+
+Next Steps:
+
+Experiment with more advanced Snort features (flowbits, byte_jump)
+Test signatures against public PCAP datasets
+Integrate Snort with SIEM systems for centralized monitoring
+Study false positive reduction techniques
