@@ -1,0 +1,586 @@
+Endpoint Detection with Sysmon + Wazuh
+Objectives
+By the end of this lab, students will be able to:
+
+Install and configure Sazuh SIEM for centralized log management
+Simulate Sysmon event logging on Linux environments
+Create custom Wazuh rules and decoders for endpoint detection
+Develop Python scripts for automated log parsing and analysis
+Implement threat detection workflows using SIEM correlation rules
+Prerequisites
+Basic Linux command line proficiency
+Understanding of SIEM concepts and log analysis
+Familiarity with XML and JSON data formats
+Basic Python programming knowledge
+Understanding of Windows event logging concepts
+Lab Environment
+Al Nafi Cloud Machine: Click Start Lab to access your pre-configured Ubuntu 20.04 LTS environment with 4GB RAM and 20GB disk space. All commands run on this single cloud instance.
+
+Task 1: Install and Configure Wazuh SIEM
+Step 1.1: Install Wazuh Manager
+# Create lab directory structure
+mkdir -p ~/endpoint-lab/{logs,scripts,configs}
+cd ~/endpoint-lab
+
+# Add Wazuh repository
+curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import
+sudo chmod 644 /usr/share/keyrings/wazuh.gpg
+
+echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" | sudo tee /etc/apt/sources.list.d/wazuh.list
+
+# Install Wazuh Manager
+sudo apt update
+sudo apt install -y wazuh-manager
+
+# Start Wazuh Manager
+sudo systemctl enable wazuh-manager
+sudo systemctl start wazuh-manager
+sudo systemctl status wazuh-manager
+Step 1.2: Install Wazuh Indexer
+# Install Wazuh Indexer (OpenSearch)
+sudo apt install -y wazuh-indexer
+
+# Configure basic settings
+sudo tee /etc/wazuh-indexer/opensearch.yml > /dev/null <<EOF
+network.host: 127.0.0.1
+node.name: node-1
+cluster.initial_master_nodes: ["node-1"]
+cluster.name: wazuh-cluster
+path.data: /var/lib/wazuh-indexer
+path.logs: /var/log/wazuh-indexer
+EOF
+
+# Start Wazuh Indexer
+sudo systemctl enable wazuh-indexer
+sudo systemctl start wazuh-indexer
+Step 1.3: Install Wazuh Dashboard
+# Install Wazuh Dashboard
+sudo apt install -y wazuh-dashboard
+
+# Configure dashboard
+sudo tee /etc/wazuh-dashboard/opensearch_dashboards.yml > /dev/null <<EOF
+server.host: 0.0.0.0
+server.port: 5601
+opensearch.hosts: ["http://127.0.0.1:9200"]
+opensearch.ssl.verificationMode: none
+EOF
+
+# Start Wazuh Dashboard
+sudo systemctl enable wazuh-dashboard
+sudo systemctl start wazuh-dashboard
+
+# Access dashboard at http://YOUR_IP:5601
+Step 1.4: Configure Local Wazuh Agent
+# Install Wazuh Agent
+sudo apt install -y wazuh-agent
+
+# Configure agent to connect to local manager
+sudo sed -i 's|<address>.*</address>|<address>127.0.0.1</address>|' /var/ossec/etc/ossec.conf
+
+# Start agent
+sudo systemctl enable wazuh-agent
+sudo systemctl start wazuh-agent
+
+# Verify agent connection
+sudo /var/ossec/bin/agent_control -l
+Task 2: Simulate Sysmon Events
+Step 2.1: Create Sysmon Event Simulator
+Since we're on Linux, we'll simulate Windows Sysmon events for learning purposes.
+
+# Create sample Sysmon XML events
+cat > ~/endpoint-lab/logs/sysmon-events.xml <<'EOF'
+<Events>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Sysmon"/>
+    <EventID>1</EventID>
+    <TimeCreated SystemTime="2024-01-15T10:30:45.123Z"/>
+    <Computer>LAB-ENDPOINT-01</Computer>
+    <EventRecordID>12345</EventRecordID>
+  </System>
+  <EventData>
+    <Data Name="Image">C:\Windows\System32\cmd.exe</Data>
+    <Data Name="CommandLine">cmd.exe /c whoami</Data>
+    <Data Name="User">LAB\Administrator</Data>
+    <Data Name="ProcessId">4567</Data>
+    <Data Name="ParentImage">C:\Windows\explorer.exe</Data>
+  </EventData>
+</Event>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Sysmon"/>
+    <EventID>3</EventID>
+    <TimeCreated SystemTime="2024-01-15T10:31:12.456Z"/>
+    <Computer>LAB-ENDPOINT-01</Computer>
+    <EventRecordID>12346</EventRecordID>
+  </System>
+  <EventData>
+    <Data Name="Image">C:\Windows\System32\powershell.exe</Data>
+    <Data Name="DestinationIp">192.168.1.100</Data>
+    <Data Name="DestinationPort">4444</Data>
+    <Data Name="Protocol">tcp</Data>
+  </EventData>
+</Event>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Sysmon"/>
+    <EventID>11</EventID>
+    <TimeCreated SystemTime="2024-01-15T10:32:30.789Z"/>
+    <Computer>LAB-ENDPOINT-01</Computer>
+    <EventRecordID>12347</EventRecordID>
+  </System>
+  <EventData>
+    <Data Name="Image">C:\Windows\System32\cmd.exe</Data>
+    <Data Name="TargetFilename">C:\Users\Admin\AppData\Local\Temp\malware.exe</Data>
+  </EventData>
+</Event>
+</Events>
+EOF
+Step 2.2: Configure Log Collection
+# Add custom log file to Wazuh configuration
+sudo tee -a /var/ossec/etc/ossec.conf > /dev/null <<EOF
+
+<!-- Sysmon Simulated Logs -->
+<localfile>
+  <log_format>syslog</log_format>
+  <location>/home/$(whoami)/endpoint-lab/logs/sysmon-events.xml</location>
+</localfile>
+EOF
+
+# Restart Wazuh Manager
+sudo systemctl restart wazuh-manager
+Task 3: Create Custom Wazuh Rules and Decoders
+Step 3.1: Create Sysmon Decoders
+# Create custom decoder file
+sudo tee /var/ossec/etc/decoders/local_sysmon_decoders.xml > /dev/null <<'EOF'
+<decoder name="sysmon-base">
+  <prematch>EventID</prematch>
+</decoder>
+
+<decoder name="sysmon-event-id">
+  <parent>sysmon-base</parent>
+  <regex offset="after_prematch">(\d+)</regex>
+  <order>sysmon.event_id</order>
+</decoder>
+
+<decoder name="sysmon-image">
+  <parent>sysmon-base</parent>
+  <regex>Image>([^<]+)</regex>
+  <order>sysmon.image</order>
+</decoder>
+
+<decoder name="sysmon-commandline">
+  <parent>sysmon-base</parent>
+  <regex>CommandLine>([^<]+)</regex>
+  <order>sysmon.commandline</order>
+</decoder>
+
+<decoder name="sysmon-network">
+  <parent>sysmon-base</parent>
+  <regex>DestinationIp>(\S+)</regex>
+  <order>sysmon.dst_ip</order>
+</decoder>
+
+<decoder name="sysmon-port">
+  <parent>sysmon-base</parent>
+  <regex>DestinationPort>(\d+)</regex>
+  <order>sysmon.dst_port</order>
+</decoder>
+EOF
+Step 3.2: Create Custom Detection Rules
+# Create custom rules file
+sudo tee /var/ossec/etc/rules/local_sysmon_rules.xml > /dev/null <<'EOF'
+<group name="sysmon,endpoint_detection,">
+
+  <!-- Base Sysmon Rule -->
+  <rule id="100001" level="3">
+    <decoded_as>sysmon-base</decoded_as>
+    <description>Sysmon event detected</description>
+  </rule>
+
+  <!-- Process Creation (Event ID 1) -->
+  <rule id="100002" level="5">
+    <if_sid>100001</if_sid>
+    <field name="sysmon.event_id">1</field>
+    <description>Sysmon: Process creation detected</description>
+    <group>process_creation,</group>
+  </rule>
+
+  <!-- Suspicious Process Execution -->
+  <rule id="100003" level="10">
+    <if_sid>100002</if_sid>
+    <field name="sysmon.image">cmd.exe|powershell.exe|wscript.exe</field>
+    <description>Sysmon: Suspicious process execution - $(sysmon.image)</description>
+    <group>suspicious_process,</group>
+  </rule>
+
+  <!-- Network Connection (Event ID 3) -->
+  <rule id="100004" level="5">
+    <if_sid>100001</if_sid>
+    <field name="sysmon.event_id">3</field>
+    <description>Sysmon: Network connection detected</description>
+    <group>network_connection,</group>
+  </rule>
+
+  <!-- Suspicious Port Connection -->
+  <rule id="100005" level="12">
+    <if_sid>100004</if_sid>
+    <field name="sysmon.dst_port">4444|5555|6666|7777</field>
+    <description>Sysmon: Connection to suspicious port $(sysmon.dst_port)</description>
+    <group>suspicious_network,</group>
+  </rule>
+
+  <!-- File Creation (Event ID 11) -->
+  <rule id="100006" level="5">
+    <if_sid>100001</if_sid>
+    <field name="sysmon.event_id">11</field>
+    <description>Sysmon: File creation detected</description>
+    <group>file_creation,</group>
+  </rule>
+
+  <!-- Suspicious File in Temp -->
+  <rule id="100007" level="10">
+    <if_sid>100006</if_sid>
+    <field name="sysmon.image">\\Temp\\.*\.exe</field>
+    <description>Sysmon: Suspicious executable created in temp directory</description>
+    <group>suspicious_file,</group>
+  </rule>
+
+</group>
+EOF
+
+# Restart Wazuh to apply changes
+sudo systemctl restart wazuh-manager
+Step 3.3: Test Rule Detection
+# Append test event to trigger rules
+cat >> ~/endpoint-lab/logs/sysmon-events.xml <<'EOF'
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Sysmon"/>
+    <EventID>3</EventID>
+    <TimeCreated SystemTime="2024-01-15T11:00:00.000Z"/>
+    <Computer>LAB-ENDPOINT-01</Computer>
+  </System>
+  <EventData>
+    <Data Name="Image">C:\Windows\System32\powershell.exe</Data>
+    <Data Name="DestinationIp">10.0.0.50</Data>
+    <Data Name="DestinationPort">4444</Data>
+  </EventData>
+</Event>
+EOF
+
+# Check alerts
+sudo tail -f /var/ossec/logs/alerts/alerts.log
+Task 4: Develop Python Log Parser
+Step 4.1: Create Log Parser Template
+Create a Python script to parse Sysmon events and generate alerts.
+
+#!/usr/bin/env python3
+"""
+Sysmon Log Parser for Wazuh Integration
+Students: Complete the TODO sections to implement full functionality
+"""
+
+import xml.etree.ElementTree as ET
+import json
+import sys
+from datetime import datetime
+from pathlib import Path
+
+class SysmonParser:
+    """Parse and analyze Sysmon XML events"""
+    
+    def __init__(self, log_file):
+        """
+        Initialize parser with log file path
+        
+        Args:
+            log_file: Path to Sysmon XML log file
+        """
+        self.log_file = log_file
+        self.events = []
+        self.alerts = []
+        
+    def parse_events(self):
+        """
+        Parse XML events from log file
+        
+        Returns:
+            List of parsed event dictionaries
+        """
+        # TODO: Read and parse XML file
+        # TODO: Extract event elements
+        # TODO: Convert to dictionary format
+        # TODO: Store in self.events list
+        pass
+    
+    def extract_event_data(self, event_element):
+        """
+        Extract data from a single event element
+        
+        Args:
+            event_element: XML element containing event data
+            
+        Returns:
+            Dictionary with event details
+        """
+        event_data = {
+            'event_id': None,
+            'timestamp': None,
+            'computer': None,
+            'data': {}
+        }
+        
+        # TODO: Extract System information (EventID, TimeCreated, Computer)
+        # TODO: Extract EventData fields (Image, CommandLine, etc.)
+        # TODO: Return structured dictionary
+        
+        return event_data
+    
+    def analyze_process_creation(self, event):
+        """
+        Analyze Event ID 1 (Process Creation) for threats
+        
+        Args:
+            event: Parsed event dictionary
+            
+        Returns:
+            List of alert dictionaries
+        """
+        alerts = []
+        
+        # TODO: Check for suspicious processes (cmd.exe, powershell.exe)
+        # TODO: Check for encoded commands
+        # TODO: Check parent-child process relationships
+        # TODO: Generate alerts with severity levels
+        
+        return alerts
+    
+    def analyze_network_connection(self, event):
+        """
+        Analyze Event ID 3 (Network Connection) for threats
+        
+        Args:
+            event: Parsed event dictionary
+            
+        Returns:
+            List of alert dictionaries
+        """
+        alerts = []
+        suspicious_ports = [4444, 5555, 6666, 7777, 8888]
+        
+        # TODO: Extract destination IP and port
+        # TODO: Check against suspicious port list
+        # TODO: Check for connections to private IPs
+        # TODO: Generate network threat alerts
+        
+        return alerts
+    
+    def analyze_file_creation(self, event):
+        """
+        Analyze Event ID 11 (File Creation) for threats
+        
+        Args:
+            event: Parsed event dictionary
+            
+        Returns:
+            List of alert dictionaries
+        """
+        alerts = []
+        
+        # TODO: Check file location (temp directories)
+        # TODO: Check file extensions (.exe, .bat, .ps1)
+        # TODO: Check for suspicious file names
+        # TODO: Generate file creation alerts
+        
+        return alerts
+    
+    def generate_report(self, output_file=None):
+        """
+        Generate analysis report in JSON format
+        
+        Args:
+            output_file: Optional path to save report
+            
+        Returns:
+            Dictionary containing analysis results
+        """
+        report = {
+            'timestamp': datetime.now().isoformat(),
+            'total_events': len(self.events),
+            'total_alerts': len(self.alerts),
+            'events': self.events,
+            'alerts': self.alerts
+        }
+        
+        # TODO: Calculate statistics (events by type, alert severity)
+        # TODO: Save to file if output_file specified
+        # TODO: Return report dictionary
+        
+        return report
+
+def main():
+    """Main execution function"""
+    if len(sys.argv) < 2:
+        print("Usage: python3 sysmon_parser.py <log_file> [output_file]")
+        sys.exit(1)
+    
+    log_file = sys.argv[1]
+    output_file = sys.argv[2] if len(sys.argv) > 2 else None
+    
+    # TODO: Create parser instance
+    # TODO: Parse events
+    # TODO: Analyze each event based on event_id
+    # TODO: Generate and save report
+    
+    print(f"Analysis complete. Processed X events, generated Y alerts.")
+
+if __name__ == "__main__":
+    main()
+Save this as ~/endpoint-lab/scripts/sysmon_parser.py and make it executable:
+
+chmod +x ~/endpoint-lab/scripts/sysmon_parser.py
+Step 4.2: Create Alert Generator Template
+#!/usr/bin/env python3
+"""
+Wazuh Alert Generator
+Students: Complete the TODO sections
+"""
+
+import json
+import socket
+import struct
+
+class WazuhAlertSender:
+    """Send custom alerts to Wazuh manager"""
+    
+    def __init__(self, manager_ip='127.0.0.1', manager_port=1514):
+        """
+        Initialize alert sender
+        
+        Args:
+            manager_ip: Wazuh manager IP address
+            manager_port: Wazuh manager port
+        """
+        self.manager_ip = manager_ip
+        self.manager_port = manager_port
+    
+    def create_alert(self, rule_id, level, description, data):
+        """
+        Create alert in Wazuh format
+        
+        Args:
+            rule_id: Custom rule ID
+            level: Alert severity (0-15)
+            description: Alert description
+            data: Additional alert data
+            
+        Returns:
+            Formatted alert string
+        """
+        alert = {
+            'rule_id': rule_id,
+            'level': level,
+            'description': description,
+            'data': data
+        }
+        
+        # TODO: Format alert according to Wazuh specifications
+        # TODO: Add timestamp
+        # TODO: Convert to JSON string
+        
+        return json.dumps(alert)
+    
+    def send_alert(self, alert):
+        """
+        Send alert to Wazuh manager
+        
+        Args:
+            alert: Formatted alert string
+        """
+        # TODO: Create socket connection
+        # TODO: Send alert data
+        # TODO: Handle errors
+        # TODO: Close connection
+        pass
+
+def main():
+    """Test alert generation"""
+    sender = WazuhAlertSender()
+    
+    # TODO: Create sample alert
+    # TODO: Send to Wazuh
+    # TODO: Verify in Wazuh dashboard
+    
+    pass
+
+if __name__ == "__main__":
+    main()
+Step 4.3: Test Your Parser
+# Run your completed parser
+python3 ~/endpoint-lab/scripts/sysmon_parser.py ~/endpoint-lab/logs/sysmon-events.xml ~/endpoint-lab/logs/analysis-report.json
+
+# View results
+cat ~/endpoint-lab/logs/analysis-report.json | jq '.'
+Expected Outcomes
+After completing this lab, you should have:
+
+Functional Wazuh SIEM: Manager, Indexer, and Dashboard running
+Custom Detection Rules: Rules detecting suspicious processes, network connections, and file operations
+Working Decoders: Parsing Sysmon XML events into structured data
+Python Parser: Script analyzing Sysmon logs and generating alerts
+Alert Dashboard: Wazuh dashboard showing detected threats
+Verification Steps:
+
+Check Wazuh services: sudo systemctl status wazuh-manager wazuh-indexer wazuh-dashboard
+View alerts: sudo tail -f /var/ossec/logs/alerts/alerts.log
+Access dashboard: http://YOUR_IP:5601
+Test custom rules by adding events to log file
+Troubleshooting Tips
+Wazuh Manager Not Starting:
+
+Check logs: sudo tail -f /var/ossec/logs/ossec.log
+Verify configuration: sudo /var/ossec/bin/wazuh-control info
+Check disk space: df -h
+Rules Not Triggering:
+
+Validate rule syntax: sudo /var/ossec/bin/wazuh-logtest
+Check decoder output: Test with sample log
+Verify log file permissions: ls -la ~/endpoint-lab/logs/
+Restart manager after rule changes: sudo systemctl restart wazuh-manager
+Dashboard Not Accessible:
+
+Check firewall: sudo ufw status
+Verify service: sudo systemctl status wazuh-dashboard
+Check port binding: sudo netstat -tlnp | grep 5601
+Python Script Errors:
+
+Verify Python version: python3 --version (requires 3.6+)
+Install missing modules: pip3 install <module_name>
+Check file paths and permissions
+Use print statements for debugging
+Conclusion
+This lab demonstrated endpoint detection and response using Wazuh SIEM with simulated Sysmon events. You learned to:
+
+Deploy a complete SIEM stack (Manager, Indexer, Dashboard)
+Create custom detection rules for endpoint security events
+Build decoders to parse structured log data
+Develop Python tools for automated log analysis
+Implement threat detection workflows
+Key Takeaways:
+
+SIEM platforms correlate events across multiple sources
+Custom rules enable detection of organization-specific threats
+Automation reduces response time to security incidents
+Endpoint logging provides visibility into system-level activities
+Next Steps:
+
+Expand rule coverage for additional Sysmon event types
+Integrate with threat intelligence feeds
+Implement automated response actions
+Create custom dashboards for security operations
+Additional Resources:
+
+Wazuh Documentation: https://documentation.wazuh.com
+Sysmon Configuration: https://github.com/SwiftOnSecurity/sysmon-config
+MITRE ATT&CK Framework: https://attack.mitre.org
