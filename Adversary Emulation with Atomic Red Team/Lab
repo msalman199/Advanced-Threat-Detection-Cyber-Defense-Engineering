@@ -1,0 +1,512 @@
+Adversary Emulation with Atomic Red Team
+Objectives
+By the end of this lab, students will be able to:
+
+Install and configure Atomic Red Team framework for adversary emulation
+Execute MITRE ATT&CK technique simulations
+Implement detection rules for emulated attacks
+Create Python automation scripts for testing and detection
+Analyze attack artifacts and detection results
+Prerequisites
+Basic Linux command line proficiency
+Understanding of MITRE ATT&CK framework
+Python programming fundamentals
+Familiarity with YAML file format
+Basic cybersecurity concepts
+Lab Environment
+This lab uses Al Nafi's pre-configured Linux cloud machines. Click Start Lab to access your environment with all necessary tools pre-installed.
+
+Task 1: Install and Configure Atomic Red Team
+Step 1: Install Dependencies
+Update system and install required packages:
+
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl wget python3 python3-pip powershell unzip jq
+pip3 install pyyaml requests pandas
+Step 2: Clone Atomic Red Team Repository
+cd /opt
+sudo git clone https://github.com/redcanaryco/atomic-red-team.git
+sudo chown -R $USER:$USER /opt/atomic-red-team
+Step 3: Install PowerShell Module
+Launch PowerShell and install the Invoke-AtomicRedTeam module:
+
+pwsh
+Inside PowerShell:
+
+Install-Module -Name invoke-atomicredteam,powershell-yaml -Force
+Import-Module invoke-atomicredteam
+exit
+Step 4: Create Lab Directory Structure
+mkdir -p ~/art-lab/{logs,scripts,detection-rules,results}
+cd ~/art-lab
+Step 5: Verify Installation
+Test the installation:
+
+pwsh -Command "Import-Module invoke-atomicredteam; Get-Command Invoke-AtomicTest"
+Task 2: Create Attack Simulation Scripts
+Step 1: Create Simple Attack Simulator
+Create ~/art-lab/scripts/attack_simulator.py:
+
+#!/usr/bin/env python3
+import subprocess
+import time
+import os
+from datetime import datetime
+
+class AttackSimulator:
+    """Simulates common attack techniques for testing detection capabilities."""
+    
+    def __init__(self, log_dir):
+        self.log_dir = log_dir
+        self.results = []
+    
+    def simulate_file_download(self):
+        """
+        Simulate T1105 - Ingress Tool Transfer
+        
+        TODO: Implement wget/curl commands to simulate file downloads
+        TODO: Log the command execution details
+        TODO: Return success/failure status
+        """
+        pass
+    
+    def simulate_discovery(self):
+        """
+        Simulate T1083 - File and Directory Discovery
+        
+        TODO: Execute find commands on sensitive directories
+        TODO: Capture command output
+        TODO: Log discovery activities
+        """
+        pass
+    
+    def simulate_command_execution(self):
+        """
+        Simulate T1059.004 - Unix Shell execution
+        
+        TODO: Execute suspicious bash commands
+        TODO: Create temporary files in /tmp
+        TODO: Log all command executions
+        """
+        pass
+    
+    def run_all_simulations(self):
+        """
+        Execute all attack simulations in sequence
+        
+        TODO: Call each simulation method
+        TODO: Add delays between simulations
+        TODO: Generate summary report
+        """
+        pass
+
+if __name__ == "__main__":
+    simulator = AttackSimulator("../logs")
+    # TODO: Implement main execution logic
+Make it executable:
+
+chmod +x ~/art-lab/scripts/attack_simulator.py
+Step 2: Create Atomic Red Team Executor
+Create ~/art-lab/scripts/art_executor.py:
+
+#!/usr/bin/env python3
+import subprocess
+import json
+from datetime import datetime
+
+class AtomicExecutor:
+    """Executes Atomic Red Team techniques via PowerShell."""
+    
+    def __init__(self, results_dir):
+        self.results_dir = results_dir
+    
+    def execute_technique(self, technique_id, test_number=1):
+        """
+        Execute a specific MITRE ATT&CK technique
+        
+        Args:
+            technique_id: ATT&CK technique ID (e.g., 'T1059.004')
+            test_number: Test number to execute
+        
+        TODO: Build PowerShell command using Invoke-AtomicTest
+        TODO: Execute command with subprocess
+        TODO: Capture and save results to JSON file
+        TODO: Handle timeouts and errors
+        """
+        pass
+    
+    def get_technique_info(self, technique_id):
+        """
+        Retrieve information about a technique
+        
+        TODO: Use Get-AtomicTechnique PowerShell cmdlet
+        TODO: Parse JSON output
+        TODO: Return technique details
+        """
+        pass
+    
+    def cleanup_technique(self, technique_id, test_number):
+        """
+        Clean up artifacts from technique execution
+        
+        TODO: Execute cleanup commands
+        TODO: Verify cleanup success
+        """
+        pass
+
+if __name__ == "__main__":
+    # TODO: Define techniques to test
+    # TODO: Execute techniques and save results
+    pass
+Task 3: Implement Detection Rules
+Step 1: Create Detection Rule Structure
+Create ~/art-lab/detection-rules/suspicious_process.yml:
+
+title: Suspicious Process Execution
+id: art-lab-001
+status: experimental
+description: Detects suspicious process creation patterns
+author: Student
+date: 2024/01/01
+references:
+    - https://attack.mitre.org/techniques/T1059/
+tags:
+    - attack.execution
+    - attack.t1059
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|contains:
+            - 'curl'
+            - 'wget'
+            - 'nc'
+            - 'bash -i'
+    condition: selection
+falsepositives:
+    - Legitimate system administration
+level: medium
+Step 2: Create Additional Detection Rules
+Create ~/art-lab/detection-rules/file_download.yml:
+
+title: Suspicious File Download
+id: art-lab-002
+status: experimental
+description: Detects file downloads using common utilities
+author: Student
+date: 2024/01/01
+references:
+    - https://attack.mitre.org/techniques/T1105/
+tags:
+    - attack.command_and_control
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|contains:
+            - 'curl -o'
+            - 'wget -O'
+    condition: selection
+level: high
+Step 3: Create Rule Processor
+Create ~/art-lab/scripts/detection_engine.py:
+
+#!/usr/bin/env python3
+import yaml
+import json
+import os
+import re
+
+class DetectionEngine:
+    """Processes logs against detection rules."""
+    
+    def __init__(self, rules_dir, logs_dir):
+        self.rules_dir = rules_dir
+        self.logs_dir = logs_dir
+        self.rules = []
+    
+    def load_rules(self):
+        """
+        Load all YAML detection rules
+        
+        TODO: Iterate through rules directory
+        TODO: Parse YAML files
+        TODO: Store rules in self.rules list
+        """
+        pass
+    
+    def check_rule_match(self, log_entry, rule):
+        """
+        Check if log entry matches a detection rule
+        
+        Args:
+            log_entry: Dictionary containing log data
+            rule: Dictionary containing rule definition
+        
+        TODO: Extract detection patterns from rule
+        TODO: Compare patterns against log data
+        TODO: Return True if match found
+        """
+        pass
+    
+    def process_log_file(self, log_file):
+        """
+        Process a single log file against all rules
+        
+        TODO: Read log file line by line
+        TODO: Parse JSON log entries
+        TODO: Check each entry against all rules
+        TODO: Return list of matches
+        """
+        pass
+    
+    def generate_alert(self, match):
+        """
+        Generate alert for detected activity
+        
+        TODO: Format alert with rule details
+        TODO: Include timestamp and evidence
+        TODO: Save alert to file
+        """
+        pass
+    
+    def run_detection(self):
+        """
+        Run detection across all log files
+        
+        TODO: Load all rules
+        TODO: Process all log files
+        TODO: Generate alerts for matches
+        TODO: Create summary report
+        """
+        pass
+
+if __name__ == "__main__":
+    # TODO: Initialize detection engine
+    # TODO: Run detection and display results
+    pass
+Task 4: Create Log Collection System
+Step 1: Build Log Collector
+Create ~/art-lab/scripts/log_collector.py:
+
+#!/usr/bin/env python3
+import subprocess
+import json
+import time
+import os
+from datetime import datetime
+
+class LogCollector:
+    """Collects system events for analysis."""
+    
+    def __init__(self, log_dir):
+        self.log_dir = log_dir
+        self.running = True
+        self.previous_processes = set()
+    
+    def collect_process_events(self):
+        """
+        Monitor and log process creation
+        
+        TODO: Execute 'ps aux' command
+        TODO: Compare with previous process list
+        TODO: Log new processes to JSON file
+        """
+        pass
+    
+    def collect_command_history(self):
+        """
+        Monitor bash history for suspicious commands
+        
+        TODO: Read ~/.bash_history file
+        TODO: Check for suspicious patterns
+        TODO: Log matching commands
+        """
+        pass
+    
+    def collect_file_events(self):
+        """
+        Monitor file system changes
+        
+        TODO: Use find command to detect new files
+        TODO: Focus on /tmp and other sensitive directories
+        TODO: Log file creation events
+        """
+        pass
+    
+    def collect_network_events(self):
+        """
+        Monitor network connections
+        
+        TODO: Execute netstat command
+        TODO: Parse output for active connections
+        TODO: Log suspicious connections
+        """
+        pass
+    
+    def start_collection(self):
+        """
+        Start continuous log collection
+        
+        TODO: Run collection methods in loop
+        TODO: Add sleep interval between collections
+        TODO: Handle keyboard interrupt gracefully
+        """
+        pass
+
+if __name__ == "__main__":
+    # TODO: Initialize collector and start collection
+    pass
+Step 2: Test Log Collection
+Start the log collector in background:
+
+cd ~/art-lab/scripts
+python3 log_collector.py &
+LOG_PID=$!
+Generate some test activity:
+
+curl http://example.com
+find /tmp -name "*.txt"
+Stop the collector:
+
+kill $LOG_PID
+Verify logs were created:
+
+ls -lh ~/art-lab/logs/
+Task 5: Create Integrated Testing Framework
+Step 1: Build Master Test Script
+Create ~/art-lab/scripts/integrated_test.py:
+
+#!/usr/bin/env python3
+import subprocess
+import time
+import signal
+import sys
+
+class IntegratedTester:
+    """Coordinates attack simulation and detection testing."""
+    
+    def __init__(self):
+        self.log_collector_pid = None
+        self.results = {}
+    
+    def start_log_collection(self):
+        """
+        Start log collection in background
+        
+        TODO: Launch log_collector.py as subprocess
+        TODO: Store process ID
+        TODO: Wait for collector to initialize
+        """
+        pass
+    
+    def stop_log_collection(self):
+        """
+        Stop log collection process
+        
+        TODO: Terminate log collector subprocess
+        TODO: Wait for graceful shutdown
+        """
+        pass
+    
+    def run_attack_simulations(self):
+        """
+        Execute attack simulations
+        
+        TODO: Call attack_simulator.py
+        TODO: Capture execution results
+        TODO: Store results for reporting
+        """
+        pass
+    
+    def run_detection(self):
+        """
+        Run detection engine on collected logs
+        
+        TODO: Call detection_engine.py
+        TODO: Capture detection results
+        TODO: Store alerts
+        """
+        pass
+    
+    def generate_report(self):
+        """
+        Generate comprehensive test report
+        
+        TODO: Summarize attack simulations
+        TODO: List detection results
+        TODO: Calculate detection rate
+        TODO: Save report to file
+        """
+        pass
+    
+    def run_full_cycle(self):
+        """
+        Execute complete test cycle
+        
+        TODO: Start log collection
+        TODO: Run attack simulations
+        TODO: Stop log collection
+        TODO: Run detection
+        TODO: Generate report
+        """
+        pass
+
+if __name__ == "__main__":
+    # TODO: Initialize tester and run full cycle
+    pass
+Step 2: Create Test Configuration
+Create ~/art-lab/config.yml:
+
+techniques:
+  - id: T1059.004
+    name: Unix Shell
+    tests: [1]
+  - id: T1105
+    name: Ingress Tool Transfer
+    tests: [1]
+  - id: T1083
+    name: File and Directory Discovery
+    tests: [1]
+
+detection:
+  log_interval: 2
+  alert_threshold: medium
+  
+reporting:
+  output_dir: results
+  format: json
+Step 3: Execute Integrated Test
+Run the complete test cycle:
+
+cd ~/art-lab/scripts
+python3 integrated_test.py
+Expected Outcomes
+After completing this lab, you should have:
+
+Functional Atomic Red Team installation
+Working attack simulation scripts
+Detection rules for common techniques
+Log collection system capturing events
+Integrated testing framework
+Reports showing attack execution and detection results
+Troubleshooting Tips
+PowerShell Module Issues:
+
+Verify PowerShell version: pwsh --version
+Reinstall module: Install-Module -Name invoke-atomicredteam -Force
+Check module path: $env:PSModulePath
+Permission Errors:
+
+Ensure proper ownership: sudo chown -R $USER:$USER /opt/atomic-red-team
+Check script permissions: chmod +x ~/art-lab/scripts/*.py
+Detection Not Working:
+
+Verify log files exist: ls -lh ~/art-lab/logs/
+Check YAML syntax: python3 -c "import yaml; yaml.safe_load(open('detection-rules/suspicious_process.yml'))"
+Ensure log collector is running: ps aux | grep log_collector
+Conclusion
+This lab demonstrated adversary emulation using Atomic Red Team and custom detection mechanisms. You learned to simulate MITRE ATT&CK techniques, collect relevant logs, and implement detection rules. This purple team approach helps validate security controls and improve detection capabilities. Continue practicing with additional techniques and refining detection rules to enhance your defensive security skills.
