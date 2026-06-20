@@ -1,0 +1,18 @@
+techniques:
+  - id: T1059.004
+    name: Unix Shell
+    tests: [1]
+  - id: T1105
+    name: Ingress Tool Transfer
+    tests: [1]
+  - id: T1083
+    name: File and Directory Discovery
+    tests: [1]
+
+detection:
+  log_interval: 2
+  alert_threshold: medium
+  
+reporting:
+  output_dir: results
+  format: json
