@@ -1,0 +1,21 @@
+title: Suspicious File Download
+id: art-lab-002
+status: experimental
+description: Detects file downloads using common utilities
+author: Student
+date: 2024/01/01
+references:
+    - https://attack.mitre.org/techniques/T1105/
+tags:
+    - attack.command_and_control
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|contains:
+            - 'curl -o'
+            - 'wget -O'
+    condition: selection
+level: high
