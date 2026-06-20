@@ -1,0 +1,25 @@
+title: Suspicious Process Execution
+id: art-lab-001
+status: experimental
+description: Detects suspicious process creation patterns
+author: Student
+date: 2024/01/01
+references:
+    - https://attack.mitre.org/techniques/T1059/
+tags:
+    - attack.execution
+    - attack.t1059
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|contains:
+            - 'curl'
+            - 'wget'
+            - 'nc'
+            - 'bash -i'
+    condition: selection
+falsepositives:
+    - Legitimate system administration
+level: medium
