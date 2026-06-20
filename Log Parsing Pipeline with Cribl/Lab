@@ -1,0 +1,591 @@
+Log Parsing Pipeline with Cribl
+Objectives
+By the end of this lab, students will be able to:
+
+Install and configure Cribl Stream for log data processing
+Create custom parsing rules and data enrichment pipelines
+Develop Python scripts for automated log parsing and enrichment
+Implement filtering and routing mechanisms for different log types
+Monitor pipeline performance and troubleshoot parsing issues
+Prerequisites
+Before starting this lab, students should have:
+
+Basic Linux command line operations
+Understanding of log file formats (JSON, syslog, Apache logs)
+Basic Python programming knowledge
+Familiarity with regular expressions
+Lab Environment
+Your Al Nafi cloud machine includes:
+
+Ubuntu 20.04 LTS
+Docker and Docker Compose pre-installed
+Python 3.8+ with pip
+Network access for package downloads
+4GB RAM, 2 vCPUs
+Click Start Lab to access your dedicated environment.
+
+Task 1: Install and Configure Cribl Stream
+Step 1.1: Install Cribl Stream
+Download and install Cribl Stream on your Linux machine:
+
+# Create working directory
+mkdir -p ~/cribl-lab && cd ~/cribl-lab
+
+# Download Cribl Stream
+wget https://cdn.cribl.io/dl/4.5.3/cribl-4.5.3-e3c67b52-linux-x64.tgz
+
+# Extract and move to /opt
+tar -xzf cribl-4.5.3-e3c67b52-linux-x64.tgz
+sudo mv cribl /opt/
+
+# Create cribl user and set permissions
+sudo useradd -r -s /bin/false cribl
+sudo chown -R cribl:cribl /opt/cribl
+
+# Start Cribl
+sudo -u cribl /opt/cribl/bin/cribl start
+
+# Verify Cribl is running
+curl http://localhost:9000/api/v1/system/info
+Step 1.2: Access Cribl Web Interface
+# Get your machine's external IP
+echo "Access Cribl at: http://$(curl -s ifconfig.me):9000"
+
+# Default credentials: admin/admin (change on first login)
+Step 1.3: Create Sample Log Files
+Generate sample logs for testing:
+
+# Create log directory
+mkdir -p /tmp/sample-logs
+
+# Apache access log
+cat > /tmp/sample-logs/apache-access.log << 'EOF'
+192.168.1.100 - - [10/Dec/2023:13:55:36 +0000] "GET /index.html HTTP/1.1" 200 2326
+10.0.0.50 - - [10/Dec/2023:13:55:37 +0000] "POST /api/login HTTP/1.1" 401 1234
+203.0.113.45 - - [10/Dec/2023:13:55:39 +0000] "GET /admin/config HTTP/1.1" 403 891
+EOF
+
+# Syslog
+cat > /tmp/sample-logs/syslog.log << 'EOF'
+Dec 10 13:55:36 webserver01 sshd[12345]: Accepted publickey for admin from 192.168.1.100
+Dec 10 13:55:37 webserver01 kernel: iptables DROP IN=eth0 SRC=203.0.113.99 DST=192.168.1.10
+Dec 10 13:55:38 webserver01 apache2[23456]: [error] File does not exist: /var/www/html/favicon.ico
+EOF
+
+# JSON application logs
+cat > /tmp/sample-logs/application.json << 'EOF'
+{"timestamp":"2023-12-10T13:55:36Z","level":"INFO","service":"auth-service","message":"User login successful","user_id":"user123"}
+{"timestamp":"2023-12-10T13:55:37Z","level":"ERROR","service":"payment-service","message":"Payment failed","error_code":"CARD_DECLINED"}
+{"timestamp":"2023-12-10T13:55:38Z","level":"WARN","service":"api-gateway","message":"Rate limit exceeded","ip":"203.0.113.45"}
+EOF
+Task 2: Create Python Log Parser Framework
+Step 2.1: Base Parser Class Structure
+Create the foundation for log parsing:
+
+#!/usr/bin/env python3
+# File: ~/cribl-lab/log_parser.py
+
+import re
+import json
+from datetime import datetime
+from typing import Dict, Optional
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class BaseLogParser:
+    """Base class for all log parsers"""
+    
+    def __init__(self):
+        self.threat_intel_cache = {}
+    
+    def enrich_ip(self, ip_address: str) -> Dict:
+        """
+        Enrich IP address with geolocation and threat intelligence.
+        
+        Args:
+            ip_address: IP address to enrich
+            
+        Returns:
+            Dictionary with enrichment data
+        """
+        # TODO: Implement IP geolocation lookup
+        # TODO: Check threat intelligence databases
+        # TODO: Determine if IP is private/public
+        # TODO: Return enrichment dictionary
+        pass
+    
+    def calculate_risk_score(self, log_data: Dict) -> int:
+        """
+        Calculate risk score (0-100) based on log data.
+        
+        Args:
+            log_data: Parsed log data dictionary
+            
+        Returns:
+            Risk score integer
+        """
+        # TODO: Check for malicious IPs
+        # TODO: Evaluate HTTP status codes
+        # TODO: Check for admin endpoint access
+        # TODO: Calculate and return score (0-100)
+        pass
+    
+    def parse(self, log_line: str) -> Optional[Dict]:
+        """
+        Parse a single log line. Override in subclasses.
+        
+        Args:
+            log_line: Raw log line string
+            
+        Returns:
+            Parsed log dictionary or None
+        """
+        raise NotImplementedError("Subclasses must implement parse()")
+Step 2.2: Apache Log Parser
+Create parser for Apache access logs:
+
+class ApacheLogParser(BaseLogParser):
+    """Parser for Apache Common Log Format"""
+    
+    def __init__(self):
+        super().__init__()
+        # TODO: Define regex pattern for Apache log format
+        # Pattern should capture: ip, timestamp, method, path, status, size
+        self.log_pattern = re.compile(r'YOUR_REGEX_HERE')
+    
+    def parse(self, log_line: str) -> Optional[Dict]:
+        """
+        Parse Apache access log line.
+        
+        Args:
+            log_line: Raw Apache log line
+            
+        Returns:
+            Dictionary with parsed fields
+        """
+        # TODO: Match log line against regex pattern
+        # TODO: Extract matched groups into dictionary
+        # TODO: Enrich IP address data
+        # TODO: Parse and convert timestamp
+        # TODO: Add log_type and risk_score
+        # TODO: Return parsed dictionary
+        pass
+    
+    def categorize_request(self, path: str, method: str) -> str:
+        """
+        Categorize HTTP request type.
+        
+        Args:
+            path: URL path
+            method: HTTP method
+            
+        Returns:
+            Category string (admin/api/static/content)
+        """
+        # TODO: Check if path starts with /admin
+        # TODO: Check if path starts with /api
+        # TODO: Check if method is POST/PUT/DELETE
+        # TODO: Check if path is static resource
+        # TODO: Return appropriate category
+        pass
+Step 2.3: Syslog Parser
+Create parser for syslog format:
+
+class SyslogParser(BaseLogParser):
+    """Parser for syslog entries"""
+    
+    def __init__(self):
+        super().__init__()
+        # TODO: Define regex for syslog format
+        # Pattern should capture: timestamp, hostname, process, pid, message
+        self.log_pattern = re.compile(r'YOUR_REGEX_HERE')
+    
+    def parse(self, log_line: str) -> Optional[Dict]:
+        """
+        Parse syslog line.
+        
+        Args:
+            log_line: Raw syslog line
+            
+        Returns:
+            Dictionary with parsed fields
+        """
+        # TODO: Match log line against regex
+        # TODO: Extract IP addresses from message
+        # TODO: Parse timestamp (add current year)
+        # TODO: Determine severity level
+        # TODO: Calculate risk score
+        # TODO: Return parsed dictionary
+        pass
+    
+    def determine_severity(self, process: str, message: str) -> str:
+        """
+        Determine log severity level.
+        
+        Args:
+            process: Process name
+            message: Log message
+            
+        Returns:
+            Severity string (error/warning/security/info)
+        """
+        # TODO: Check for error/failed keywords
+        # TODO: Check for warning keywords
+        # TODO: Check for security-related processes (sshd, sudo)
+        # TODO: Return severity level
+        pass
+Step 2.4: JSON Log Parser
+Create parser for JSON application logs:
+
+class JSONLogParser(BaseLogParser):
+    """Parser for JSON application logs"""
+    
+    def parse(self, log_line: str) -> Optional[Dict]:
+        """
+        Parse JSON log line.
+        
+        Args:
+            log_line: Raw JSON log line
+            
+        Returns:
+            Dictionary with parsed and enriched fields
+        """
+        # TODO: Parse JSON string
+        # TODO: Handle JSON decode errors
+        # TODO: Enrich IP if present
+        # TODO: Add log_type metadata
+        # TODO: Calculate risk score
+        # TODO: Ensure timestamp is ISO format
+        # TODO: Return enriched dictionary
+        pass
+    
+    def calculate_json_risk_score(self, log_data: Dict) -> int:
+        """
+        Calculate risk score for JSON logs.
+        
+        Args:
+            log_data: Parsed log data
+            
+        Returns:
+            Risk score (0-100)
+        """
+        # TODO: Check log level (ERROR=40, WARN=20)
+        # TODO: Check for payment service errors
+        # TODO: Check for rate limiting
+        # TODO: Return total score (max 100)
+        pass
+Step 2.5: Log Enrichment Pipeline
+Create the main processing pipeline:
+
+class LogEnrichmentPipeline:
+    """Main pipeline for log enrichment"""
+    
+    def __init__(self):
+        self.parsers = {
+            'apache': ApacheLogParser(),
+            'syslog': SyslogParser(),
+            'json': JSONLogParser()
+        }
+    
+    def process_log_file(self, file_path: str, log_type: str, output_path: str):
+        """
+        Process entire log file and write enriched output.
+        
+        Args:
+            file_path: Input log file path
+            log_type: Type of log (apache/syslog/json)
+            output_path: Output file path for enriched logs
+        """
+        # TODO: Validate log_type is supported
+        # TODO: Open input file and read lines
+        # TODO: Parse each line with appropriate parser
+        # TODO: Add line_number and source_file metadata
+        # TODO: Write enriched logs to output file (JSON format)
+        # TODO: Log processing statistics
+        pass
+
+def main():
+    """Main function to demonstrate log parsing"""
+    # TODO: Create LogEnrichmentPipeline instance
+    # TODO: Process apache-access.log
+    # TODO: Process syslog.log
+    # TODO: Process application.json
+    # TODO: Print completion message
+    pass
+
+if __name__ == "__main__":
+    main()
+Task 3: Configure Cribl Pipelines via API
+Step 3.1: Cribl API Client
+Create a client to interact with Cribl's API:
+
+#!/usr/bin/env python3
+# File: ~/cribl-lab/cribl_api_client.py
+
+import requests
+import json
+from typing import Dict, List
+
+class CriblAPIClient:
+    """Client for Cribl Stream API"""
+    
+    def __init__(self, base_url: str = "http://localhost:9000"):
+        self.base_url = base_url
+        self.api_base = f"{base_url}/api/v1"
+        self.session = requests.Session()
+    
+    def create_input_source(self, source_config: Dict) -> bool:
+        """
+        Create a new input source in Cribl.
+        
+        Args:
+            source_config: Input source configuration dictionary
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        # TODO: POST to /api/v1/w/default/inputs
+        # TODO: Handle response status codes
+        # TODO: Log success or failure
+        # TODO: Return boolean result
+        pass
+    
+    def create_pipeline(self, pipeline_config: Dict) -> bool:
+        """
+        Create a new processing pipeline.
+        
+        Args:
+            pipeline_config: Pipeline configuration dictionary
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        # TODO: POST to /api/v1/w/default/pipelines
+        # TODO: Handle response and errors
+        # TODO: Return success status
+        pass
+    
+    def create_output_destination(self, output_config: Dict) -> bool:
+        """
+        Create a new output destination.
+        
+        Args:
+            output_config: Output configuration dictionary
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        # TODO: POST to /api/v1/w/default/outputs
+        # TODO: Handle response
+        # TODO: Return success status
+        pass
+Step 3.2: Configure File Input Sources
+def configure_file_inputs():
+    """Configure file input sources for different log types"""
+    
+    client = CriblAPIClient()
+    
+    # Apache logs input
+    apache_input = {
+        "id": "apache_logs",
+        "type": "file",
+        "pipeline": "apache_enrichment",
+        "conf": {
+            "path": "/tmp/sample-logs/apache-access.log",
+            "breakerRulesets": ["default"]
+        }
+    }
+    
+    # TODO: Create syslog input configuration
+    # TODO: Create JSON logs input configuration
+    # TODO: Call client.create_input_source() for each
+    # TODO: Handle and log results
+    pass
+Step 3.3: Create Processing Pipelines
+def create_apache_pipeline():
+    """Create Apache log enrichment pipeline"""
+    
+    pipeline_config = {
+        "id": "apache_enrichment",
+        "conf": {
+            "functions": [
+                {
+                    "id": "regex_extract",
+                    "conf": {
+                        "regex": r'(?P<ip>\S+).*"(?P<method>\S+) (?P<path>\S+).*" (?P<status>\d+)',
+                        "iterations": 100
+                    }
+                },
+                {
+                    "id": "eval",
+                    "conf": {
+                        "add": [
+                            {"name": "log_type", "value": "'apache_access'"},
+                            {"name": "is_error", "value": "status >= '400'"}
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+    
+    # TODO: Create CriblAPIClient instance
+    # TODO: Call create_pipeline with config
+    # TODO: Return result
+    pass
+Task 4: Implement Log Routing and Filtering
+Step 4.1: Create Route Configuration
+def create_log_routes():
+    """
+    Create routes to send logs to different destinations based on criteria.
+    """
+    
+    routes_config = {
+        "routes": [
+            {
+                "id": "high_risk_logs",
+                "filter": "risk_score > 70",
+                "output": "security_alerts",
+                "description": "Route high-risk logs to security team"
+            },
+            # TODO: Add route for error logs (status >= 400)
+            # TODO: Add route for admin access logs
+            # TODO: Add default route for all other logs
+        ]
+    }
+    
+    # TODO: Implement route creation via API
+    pass
+Step 4.2: Implement Filtering Logic
+def apply_filters(log_data: Dict) -> bool:
+    """
+    Determine if log should be processed based on filters.
+    
+    Args:
+        log_data: Parsed log dictionary
+        
+    Returns:
+        True if log passes filters, False otherwise
+    """
+    # TODO: Filter out logs with risk_score < 10
+    # TODO: Filter out static resource requests
+    # TODO: Keep all security-related logs
+    # TODO: Return boolean decision
+    pass
+Task 5: Monitor and Test the Pipeline
+Step 5.1: Create Monitoring Script
+#!/usr/bin/env python3
+# File: ~/cribl-lab/monitor_pipeline.py
+
+import requests
+import time
+from datetime import datetime
+
+def monitor_cribl_metrics():
+    """
+    Monitor Cribl pipeline metrics and performance.
+    """
+    
+    api_url = "http://localhost:9000/api/v1/system/metrics"
+    
+    # TODO: Fetch metrics from Cribl API
+    # TODO: Extract events_in, events_out, bytes_processed
+    # TODO: Calculate throughput (events/second)
+    # TODO: Check for pipeline errors
+    # TODO: Print formatted metrics
+    # TODO: Implement continuous monitoring loop
+    pass
+
+def check_pipeline_health():
+    """
+    Check health status of all pipelines.
+    """
+    # TODO: Query pipeline status endpoint
+    # TODO: Check for backpressure or blocking
+    # TODO: Verify all inputs are active
+    # TODO: Return health status dictionary
+    pass
+Step 5.2: Test Log Processing
+# Run your Python parser
+python3 ~/cribl-lab/log_parser.py
+
+# Verify enriched output
+cat /tmp/enriched-logs/apache-enriched.json | jq '.'
+
+# Check Cribl processing
+curl http://localhost:9000/api/v1/system/metrics | jq '.data.total'
+
+# Monitor in real-time
+python3 ~/cribl-lab/monitor_pipeline.py
+Step 5.3: Validate Enrichment
+Create validation script:
+
+def validate_enrichment(enriched_file: str):
+    """
+    Validate that logs are properly enriched.
+    
+    Args:
+        enriched_file: Path to enriched log file
+    """
+    # TODO: Read enriched log file
+    # TODO: Check each log has required fields
+    # TODO: Verify risk_score is calculated
+    # TODO: Confirm IP enrichment is present
+    # TODO: Print validation summary
+    pass
+Expected Outcomes
+After completing this lab, you should have:
+
+Cribl Stream installed and running on port 9000
+Three log parsers (Apache, Syslog, JSON) with enrichment logic
+Enriched log files in /tmp/enriched-logs/ directory
+Working API integration with Cribl for pipeline management
+Monitoring capabilities for pipeline performance
+Understanding of log routing and filtering mechanisms
+Troubleshooting Tips
+Issue: Cribl won't start
+# Check if port 9000 is already in use
+sudo netstat -tlnp | grep 9000
+
+# Check Cribl logs
+tail -f /opt/cribl/log/cribl.log
+
+# Verify permissions
+ls -la /opt/cribl
+Issue: Regex patterns not matching
+# Test regex patterns independently
+import re
+pattern = r'YOUR_PATTERN'
+test_line = "YOUR_LOG_LINE"
+match = re.match(pattern, test_line)
+print(match.groupdict() if match else "No match")
+Issue: API calls failing
+# Verify Cribl API is accessible
+curl -v http://localhost:9000/api/v1/system/info
+
+# Check authentication requirements
+# Default: no auth required for local access
+
+# Enable debug logging in Python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+Issue: Logs not being enriched
+Verify input file paths are correct
+Check parser regex patterns match log format
+Ensure output directory exists and is writable
+Review Cribl pipeline configuration in web UI
+Check for parsing errors in logs
+Conclusion
+In this lab, you built a complete log parsing and enrichment pipeline using Cribl Stream and Python. You learned to:
+
+Install and configure Cribl for log processing
+Create custom parsers for multiple log formats
+Implement IP enrichment and risk scoring
+Manage Cribl pipelines via API
+Route and filter logs based on criteria
+Monitor pipeline performance
+These skills are essential for security operations, log management, and building scalable data processing pipelines. Continue practicing by adding more log sources, creating custom enrichment functions, and integrating with SIEM platforms.
+
+Next Steps: Explore Cribl's built-in functions, integrate with Elasticsearch for storage, and implement real-time alerting for high-risk events.
